@@ -6,3 +6,148 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  PASSIVE
+}
+
+enum AccountStatus {
+  ACTIVE
+  PASSIVE
+}
+
+enum Currency {
+  TRY
+  USD
+  EUR
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum EntryDirection {
+  DEBIT
+  CREDIT
+}
+
+model User {
+  id                   String        @id @default(uuid()) @db.Uuid
+  email                String        @unique
+  passwordHash         String        @map("password_hash")
+  role                 Role
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  customer             Customer?
+  refreshTokens        RefreshToken[]
+  initiatedTransactions Transaction[] @relation("InitiatedTransactions")
+
+  @@map("users")
+}
+
+model Customer {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @unique @map("user_id") @db.Uuid
+  user       User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  firstName  String         @map("first_name")
+  lastName   String         @map("last_name")
+  nationalId String         @unique @map("national_id")
+  phone      String
+  status     CustomerStatus @default(ACTIVE)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  accounts   Account[]
+
+  @@index([lastName, firstName])
+  @@map("customers")
+}
+
+model Account {
+  id                 String         @id @default(uuid()) @db.Uuid
+  customerId         String         @map("customer_id") @db.Uuid
+  customer           Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  accountNumber      String         @unique @map("account_number")
+  currency           Currency
+  balance            Decimal        @default(0) @db.Decimal(19, 2)
+  status             AccountStatus  @default(ACTIVE)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  ledgerEntries      LedgerEntry[]
+  sourceTransactions Transaction[]  @relation("SourceTransactions")
+  targetTransactions Transaction[]  @relation("TargetTransactions")
+
+  @@index([customerId])
+  @@map("accounts")
+}
+
+model Transaction {
+  id              String            @id @default(uuid()) @db.Uuid
+  referenceNo     String            @unique @map("reference_no") @default(dbgenerated("(('TRX'::text || to_char(now(), 'YYYYMMDD'::text)) || lpad((nextval('transaction_reference_seq'::regclass))::text, 12, '0'::text))"))
+  type            TransactionType
+  status          TransactionStatus @default(PENDING)
+  amount          Decimal           @db.Decimal(19, 2)
+  currency        Currency
+  sourceAccountId String?           @map("source_account_id") @db.Uuid
+  sourceAccount   Account?          @relation("SourceTransactions", fields: [sourceAccountId], references: [id], onDelete: Restrict)
+  targetAccountId String?           @map("target_account_id") @db.Uuid
+  targetAccount   Account?          @relation("TargetTransactions", fields: [targetAccountId], references: [id], onDelete: Restrict)
+  description     String?
+  failureReason   String?           @map("failure_reason")
+  idempotencyKey  String            @map("idempotency_key")
+  requestHash     String            @map("request_hash")
+  initiatedById   String            @map("initiated_by_id") @db.Uuid
+  initiatedBy     User              @relation("InitiatedTransactions", fields: [initiatedById], references: [id], onDelete: Restrict)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  completedAt     DateTime?         @map("completed_at") @db.Timestamptz
+  ledgerEntries   LedgerEntry[]
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([sourceAccountId])
+  @@index([targetAccountId])
+  @@unique([initiatedById, idempotencyKey])
+  @@map("transactions")
+}
+
+model LedgerEntry {
+  id            String         @id @default(uuid()) @db.Uuid
+  transactionId String         @map("transaction_id") @db.Uuid
+  transaction   Transaction    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  accountId     String         @map("account_id") @db.Uuid
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  direction     EntryDirection
+  amount        Decimal        @db.Decimal(19, 2)
+  balanceAfter  Decimal        @map("balance_after") @db.Decimal(19, 2)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([accountId, createdAt(sort: Desc)])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
