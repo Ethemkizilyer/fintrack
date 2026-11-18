@@ -47,7 +47,14 @@ export const JsonNull = runtime.JsonNull;
  */
 export const AnyNull = runtime.AnyNull;
 
-export const ModelName = {} as const;
+export const ModelName = {
+  User: 'User',
+  Customer: 'Customer',
+  Account: 'Account',
+  Transaction: 'Transaction',
+  LedgerEntry: 'LedgerEntry',
+  RefreshToken: 'RefreshToken',
+} as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
 
@@ -64,3 +71,110 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 
 export type TransactionIsolationLevel =
   (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel];
+
+export const UserScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  passwordHash: 'passwordHash',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum];
+
+export const CustomerScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  firstName: 'firstName',
+  lastName: 'lastName',
+  nationalId: 'nationalId',
+  phone: 'phone',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type CustomerScalarFieldEnum =
+  (typeof CustomerScalarFieldEnum)[keyof typeof CustomerScalarFieldEnum];
+
+export const AccountScalarFieldEnum = {
+  id: 'id',
+  customerId: 'customerId',
+  accountNumber: 'accountNumber',
+  currency: 'currency',
+  balance: 'balance',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type AccountScalarFieldEnum =
+  (typeof AccountScalarFieldEnum)[keyof typeof AccountScalarFieldEnum];
+
+export const TransactionScalarFieldEnum = {
+  id: 'id',
+  referenceNo: 'referenceNo',
+  type: 'type',
+  status: 'status',
+  amount: 'amount',
+  currency: 'currency',
+  sourceAccountId: 'sourceAccountId',
+  targetAccountId: 'targetAccountId',
+  description: 'description',
+  failureReason: 'failureReason',
+  idempotencyKey: 'idempotencyKey',
+  requestHash: 'requestHash',
+  initiatedById: 'initiatedById',
+  createdAt: 'createdAt',
+  completedAt: 'completedAt',
+} as const;
+
+export type TransactionScalarFieldEnum =
+  (typeof TransactionScalarFieldEnum)[keyof typeof TransactionScalarFieldEnum];
+
+export const LedgerEntryScalarFieldEnum = {
+  id: 'id',
+  transactionId: 'transactionId',
+  accountId: 'accountId',
+  direction: 'direction',
+  amount: 'amount',
+  balanceAfter: 'balanceAfter',
+  createdAt: 'createdAt',
+} as const;
+
+export type LedgerEntryScalarFieldEnum =
+  (typeof LedgerEntryScalarFieldEnum)[keyof typeof LedgerEntryScalarFieldEnum];
+
+export const RefreshTokenScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  tokenHash: 'tokenHash',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+} as const;
+
+export type RefreshTokenScalarFieldEnum =
+  (typeof RefreshTokenScalarFieldEnum)[keyof typeof RefreshTokenScalarFieldEnum];
+
+export const SortOrder = {
+  asc: 'asc',
+  desc: 'desc',
+} as const;
+
+export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder];
+
+export const QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive',
+} as const;
+
+export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode];
+
+export const NullsOrder = {
+  first: 'first',
+  last: 'last',
+} as const;
+
+export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder];
