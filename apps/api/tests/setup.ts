@@ -1,0 +1,13 @@
+import { beforeEach } from 'vitest';
+import { prisma } from '@/lib/prisma';
+
+beforeEach(async () => {
+  const tables = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+
+  if (tables.length === 0) return;
+
+  const names = tables.map((t) => `"${t.tablename}"`).join(', ');
+  await prisma.$executeRawUnsafe(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
+});
