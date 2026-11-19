@@ -1,4 +1,4 @@
-import { beforeEach } from 'vitest';
+import { afterAll, beforeEach } from 'vitest';
 import { prisma } from '@/lib/prisma';
 
 beforeEach(async () => {
@@ -10,4 +10,8 @@ beforeEach(async () => {
 
   const names = tables.map((t) => `"${t.tablename}"`).join(', ');
   await prisma.$executeRawUnsafe(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
 });
