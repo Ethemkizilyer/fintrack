@@ -8,6 +8,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   WEB_URL: z.url(),
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+  SEED_CUSTOMER_PASSWORD: z.string().min(8).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
