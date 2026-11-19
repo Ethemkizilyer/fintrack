@@ -85,3 +85,9 @@ export async function loginAs(role: Role = 'CUSTOMER'): Promise<string> {
   const { accessToken } = await loginWithCookie(role);
   return accessToken;
 }
+
+export async function loginUser(email: string, password: string = TEST_PASSWORD): Promise<string> {
+  const res = await request(app).post('/api/v1/auth/login').send({ email, password });
+  const body = res.body as { data: { accessToken: string } };
+  return body.data.accessToken;
+}
