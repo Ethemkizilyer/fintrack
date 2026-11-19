@@ -143,7 +143,7 @@ model RefreshToken {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String    @map("token_hash")
+  tokenHash String   @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at") @db.Timestamptz
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
