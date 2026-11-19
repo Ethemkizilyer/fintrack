@@ -30,9 +30,13 @@ describe('POST /api/v1/auth/login', () => {
     expect(body.data.user.email).toBe('login@example.com');
     expect(body.data.user).not.toHaveProperty('passwordHash');
 
-    const setCookie = (res.headers as Record<string, string[]>)['set-cookie']?.[0] ?? '';
-    expect(setCookie).toContain('refreshToken=');
-    expect(setCookie).toContain('HttpOnly');
+    const headers = res.headers as Record<string, string | string[] | undefined>;
+    const setCookie = headers['set-cookie'];
+    const cookieHeader = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    expect(cookieHeader).toEqual(expect.stringContaining('refreshToken='));
+    expect(cookieHeader).toEqual(expect.stringContaining('HttpOnly'));
+    expect(String(cookieHeader)).toContain('refreshToken=');
+    expect(String(cookieHeader)).toContain('HttpOnly');
   });
 
   it('returns the same 401 for wrong password and unknown email', async () => {

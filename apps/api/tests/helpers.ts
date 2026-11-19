@@ -4,8 +4,17 @@ import request from 'supertest';
 import { app } from '@/app';
 import type { Currency, CustomerStatus, Role } from '@/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
+import { isValidNationalId } from '@/utils/national-id';
 
 export const TEST_PASSWORD = 'test-password-123';
+
+function nextNationalId(): string {
+  nationalIdSeq += 1;
+  while (!isValidNationalId(String(10_000_000_000 + nationalIdSeq))) {
+    nationalIdSeq += 1;
+  }
+  return String(10_000_000_000 + nationalIdSeq);
+}
 
 let nationalIdSeq = 0;
 let accountSeq = 0;
@@ -30,7 +39,7 @@ export async function createCustomer(
       userId: user.id,
       firstName: 'Test',
       lastName: 'Customer',
-      nationalId: String(10_000_000_000 + ++nationalIdSeq),
+      nationalId: nextNationalId(),
       phone: '+905000000000',
       status: data.status ?? 'ACTIVE',
     },
