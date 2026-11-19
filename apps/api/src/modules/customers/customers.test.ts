@@ -2,6 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { app } from '@/app';
 import { TEST_PASSWORD, createCustomer, loginAs } from '../../../tests/helpers';
+import { prisma } from '@/lib/prisma';
 
 const ADMIN = () => loginAs('ADMIN');
 const VALID = {
@@ -80,6 +81,18 @@ describe('GET /api/v1/customers', () => {
     const body = res.body as { data: { email: string }[] };
     expect(body.data).toHaveLength(1);
     expect(body.data[0]?.email).toBe('findme@example.com');
+  });
+
+  it('finds Turkish names without accents', async () => {
+    const { customer } = await createCustomer();
+    await prisma.customer.update({ where: { id: customer.id }, data: { firstName: 'İsmail' } });
+
+    const res = await request(app)
+      .get('/api/v1/customers?search=ismail')
+      .set('Authorization', `Bearer ${await ADMIN()}`);
+
+    const body = res.body as { data: { firstName: string }[] };
+    expect(body.data.some((c) => c.firstName === 'İsmail')).toBe(true);
   });
 });
 

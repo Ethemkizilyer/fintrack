@@ -2,26 +2,26 @@ import { z } from 'zod';
 import { isValidNationalId } from '@/utils/national-id';
 
 export const createCustomerSchema = z.object({
-  email: z.email(),
-  password: z.string().min(8),
-  firstName: z.string().trim().min(2).max(50),
-  lastName: z.string().trim().min(2).max(50),
+  email: z.email('Geçerli bir e-posta girin'),
+  password: z.string().min(8, 'Şifre en az 8 karakter olmalı'),
+  firstName: z.string().trim().min(2, 'Ad en az 2 karakter olmalı').max(50),
+  lastName: z.string().trim().min(2, 'Soyad en az 2 karakter olmalı').max(50),
   nationalId: z
     .string()
-    .regex(/^\d{11}$/, 'National ID must be 11 digits')
-    .refine(isValidNationalId, 'Invalid national ID'),
-  phone: z.string().trim().min(7).max(20),
+    .regex(/^\d{11}$/, 'T.C. kimlik numarası 11 haneli olmalı')
+    .refine(isValidNationalId, 'Geçersiz T.C. kimlik numarası'),
+  phone: z.string().trim().min(7, 'Geçerli bir telefon girin').max(20),
 });
 
 export const updateCustomerSchema = z.object({
-  firstName: z.string().trim().min(2).max(50).optional(),
-  lastName: z.string().trim().min(2).max(50).optional(),
-  phone: z.string().trim().min(7).max(20).optional(),
+  firstName: z.string().trim().min(2, 'Ad en az 2 karakter olmalı').max(50).optional(),
+  lastName: z.string().trim().min(2, 'Soyad en az 2 karakter olmalı').max(50).optional(),
+  phone: z.string().trim().min(7, 'Geçerli bir telefon girin').max(20).optional(),
   status: z.enum(['ACTIVE', 'PASSIVE']).optional(),
 });
 
 export const customerIdParamsSchema = z.object({
-  id: z.uuid(),
+  id: z.uuid('Geçersiz müşteri kimliği'),
 });
 
 export const listCustomersQuerySchema = z.object({

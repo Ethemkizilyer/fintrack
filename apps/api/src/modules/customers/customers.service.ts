@@ -66,13 +66,20 @@ export async function listCustomers({
   sort,
   order,
 }: ListCustomersQuery) {
+  let matchedIds: string[] | undefined;
+  if (search) {
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM customers
+    WHERE unaccent(lower(first_name || ' ' || last_name))
+          ILIKE '%' || unaccent(lower(${search})) || '%'`;
+    matchedIds = rows.map((row) => row.id);
+  }
   const where: Prisma.CustomerWhereInput = {
     ...(status ? { status } : {}),
     ...(search
       ? {
           OR: [
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
+            { id: { in: matchedIds } },
             { user: { email: { contains: search, mode: 'insensitive' } } },
           ],
         }
