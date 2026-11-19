@@ -8,5 +8,54 @@
  * 🟢 You can import this file directly.
  */
 
-// This file is empty because there are no enums in the schema.
-export {};
+export const Role = {
+  ADMIN: 'ADMIN',
+  CUSTOMER: 'CUSTOMER',
+} as const;
+
+export type Role = (typeof Role)[keyof typeof Role];
+
+export const CustomerStatus = {
+  ACTIVE: 'ACTIVE',
+  PASSIVE: 'PASSIVE',
+} as const;
+
+export type CustomerStatus = (typeof CustomerStatus)[keyof typeof CustomerStatus];
+
+export const AccountStatus = {
+  ACTIVE: 'ACTIVE',
+  PASSIVE: 'PASSIVE',
+} as const;
+
+export type AccountStatus = (typeof AccountStatus)[keyof typeof AccountStatus];
+
+export const Currency = {
+  TRY: 'TRY',
+  USD: 'USD',
+  EUR: 'EUR',
+} as const;
+
+export type Currency = (typeof Currency)[keyof typeof Currency];
+
+export const TransactionType = {
+  DEPOSIT: 'DEPOSIT',
+  WITHDRAWAL: 'WITHDRAWAL',
+  TRANSFER: 'TRANSFER',
+} as const;
+
+export type TransactionType = (typeof TransactionType)[keyof typeof TransactionType];
+
+export const TransactionStatus = {
+  PENDING: 'PENDING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+} as const;
+
+export type TransactionStatus = (typeof TransactionStatus)[keyof typeof TransactionStatus];
+
+export const EntryDirection = {
+  DEBIT: 'DEBIT',
+  CREDIT: 'CREDIT',
+} as const;
+
+export type EntryDirection = (typeof EntryDirection)[keyof typeof EntryDirection];
