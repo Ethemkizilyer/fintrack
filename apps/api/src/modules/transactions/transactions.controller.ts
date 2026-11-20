@@ -4,6 +4,7 @@ import * as transactionsService from './transactions.service';
 import { toPublicTransaction } from './transactions.mapper';
 import {
   createDepositSchema,
+  createTransferSchema,
   createWithdrawalSchema,
   idempotencyKeySchema,
 } from './transactions.schema';
@@ -28,6 +29,14 @@ export async function withdrawal(req: Request, res: Response) {
   const { actor, idempotencyKey } = getRequestContext(req);
   const input = createWithdrawalSchema.parse(req.body);
   const result = await transactionsService.createWithdrawal(actor, input, idempotencyKey);
+
+  res.status(result.isReplay ? 200 : 201).json({ data: toPublicTransaction(result.transaction) });
+}
+
+export async function transfer(req: Request, res: Response) {
+  const { actor, idempotencyKey } = getRequestContext(req);
+  const input = createTransferSchema.parse(req.body);
+  const result = await transactionsService.createTransfer(actor, input, idempotencyKey);
 
   res.status(result.isReplay ? 200 : 201).json({ data: toPublicTransaction(result.transaction) });
 }

@@ -7,6 +7,15 @@ const moneyOperationSchema = z.object({
   description: z.string().trim().max(500, 'Açıklama en fazla 500 karakter olabilir').optional(),
 });
 
+export const createTransferSchema = z.object({
+  sourceAccountId: z.uuid('Geçersiz kaynak hesap kimliği'),
+  targetAccountNumber: z.string().regex(/^\d{16}$/, 'Hedef hesap numarası 16 haneli olmalı'),
+  amount: amountSchema,
+  description: z.string().trim().max(500, 'Açıklama en fazla 500 karakter olabilir').optional(),
+});
+
+export type CreateTransferInput = z.infer<typeof createTransferSchema>;
+
 export const createDepositSchema = moneyOperationSchema;
 export const createWithdrawalSchema = moneyOperationSchema;
 

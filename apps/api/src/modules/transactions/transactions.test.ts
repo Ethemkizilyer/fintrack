@@ -16,6 +16,16 @@ type InsufficientFundsResponse = {
   };
 };
 
+async function fundAccount(token: string, accountId: string): Promise<void> {
+  const response = await request(app)
+    .post('/api/v1/transactions/deposits')
+    .set('Authorization', `Bearer ${token}`)
+    .set('Idempotency-Key', randomUUID())
+    .send({ accountId, amount: '100.00' });
+
+  expect(response.status).toBe(201);
+}
+
 describe('POST /api/v1/transactions/deposits', () => {
   it('deposits money once and replays the same idempotency key', async () => {
     const { user, customer } = await createCustomer();
@@ -112,6 +122,115 @@ describe('POST /api/v1/transactions/withdrawals', () => {
       .send({ accountId: anotherAccount.id, amount: '1.00' });
 
     expect(response.status).toBe(404);
+    expect(await prisma.transaction.count()).toBe(0);
+  });
+});
+
+describe('POST /api/v1/transactions/transfers', () => {
+  it('moves money between same-currency accounts and writes two ledger entries', async () => {
+    const { user, customer } = await createCustomer();
+    const source = await createAccount(customer.id, 'TRY');
+    const target = await createAccount(customer.id, 'TRY');
+    const token = await loginUser(user.email);
+
+    await fundAccount(token, source.id);
+
+    const response = await request(app)
+      .post('/api/v1/transactions/transfers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        sourceAccountId: source.id,
+        targetAccountNumber: target.accountNumber,
+        amount: '25.00',
+      });
+
+    expect(response.status).toBe(201);
+    const body = response.body as { data: { id: string; status: string } };
+    expect(body.data.status).toBe('COMPLETED');
+
+    const updatedSource = await prisma.account.findUniqueOrThrow({
+      where: { id: source.id },
+    });
+    const updatedTarget = await prisma.account.findUniqueOrThrow({
+      where: { id: target.id },
+    });
+    const entries = await prisma.ledgerEntry.findMany({
+      where: { transactionId: body.data.id },
+    });
+
+    expect(updatedSource.balance.toFixed(2)).toBe('75.00');
+    expect(updatedTarget.balance.toFixed(2)).toBe('25.00');
+    expect(entries).toHaveLength(2);
+    expect(entries.find((entry) => entry.accountId === source.id)?.direction).toBe('DEBIT');
+    expect(entries.find((entry) => entry.accountId === source.id)?.balanceAfter.toFixed(2)).toBe(
+      '75.00',
+    );
+    expect(entries.find((entry) => entry.accountId === target.id)?.direction).toBe('CREDIT');
+    expect(entries.find((entry) => entry.accountId === target.id)?.balanceAfter.toFixed(2)).toBe(
+      '25.00',
+    );
+  });
+
+  it('records a currency mismatch as FAILED and changes neither balance', async () => {
+    const { user, customer } = await createCustomer();
+    const source = await createAccount(customer.id, 'TRY');
+    const target = await createAccount(customer.id, 'USD');
+    const token = await loginUser(user.email);
+
+    await fundAccount(token, source.id);
+
+    const response = await request(app)
+      .post('/api/v1/transactions/transfers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        sourceAccountId: source.id,
+        targetAccountNumber: target.accountNumber,
+        amount: '10.00',
+      });
+
+    expect(response.status).toBe(422);
+    const body = response.body as {
+      error: { code: string; details: { referenceNo: string } };
+    };
+    expect(body.error.code).toBe('CURRENCY_MISMATCH');
+
+    const failed = await prisma.transaction.findUniqueOrThrow({
+      where: { referenceNo: body.error.details.referenceNo },
+    });
+    const updatedSource = await prisma.account.findUniqueOrThrow({
+      where: { id: source.id },
+    });
+    const updatedTarget = await prisma.account.findUniqueOrThrow({
+      where: { id: target.id },
+    });
+    const ledgerCount = await prisma.ledgerEntry.count({
+      where: { transactionId: failed.id },
+    });
+
+    expect(failed.status).toBe('FAILED');
+    expect(updatedSource.balance.toFixed(2)).toBe('100.00');
+    expect(updatedTarget.balance.toFixed(2)).toBe('0.00');
+    expect(ledgerCount).toBe(0);
+  });
+
+  it('rejects a transfer to the same account before creating a transaction', async () => {
+    const { user, customer } = await createCustomer();
+    const account = await createAccount(customer.id);
+    const token = await loginUser(user.email);
+
+    const response = await request(app)
+      .post('/api/v1/transactions/transfers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        sourceAccountId: account.id,
+        targetAccountNumber: account.accountNumber,
+        amount: '1.00',
+      });
+
+    expect(response.status).toBe(400);
     expect(await prisma.transaction.count()).toBe(0);
   });
 });

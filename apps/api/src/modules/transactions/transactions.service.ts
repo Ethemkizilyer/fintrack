@@ -6,20 +6,28 @@ import { prisma } from '@/lib/prisma';
 import type { Actor } from '@/types/actor';
 import { AppError } from '@/utils/app-error';
 import { toDecimal } from '@/utils/money';
-import type { CreateMoneyOperationInput } from './transactions.schema';
+import type { CreateMoneyOperationInput, CreateTransferInput } from './transactions.schema';
 import { runMoneyTransaction } from './money-movement';
 
 type MoneyOperationType = Extract<TransactionType, 'DEPOSIT' | 'WITHDRAWAL'>;
+type HashValue = string | null;
 
-function hashRequest(type: MoneyOperationType, input: CreateMoneyOperationInput): string {
-  const canonicalRequest = {
-    type,
-    accountId: input.accountId,
-    amount: input.amount,
-    description: input.description ?? null,
-  };
+type PendingTransactionInput = {
+  type: TransactionType;
+  amount: Prisma.Decimal;
+  currency: Currency;
+  sourceAccountId?: string;
+  targetAccountId?: string;
+  description?: string;
+  idempotencyKey: string;
+  requestHash: string;
+  initiatedById: string;
+};
 
-  return createHash('sha256').update(JSON.stringify(canonicalRequest)).digest('hex');
+function hashRequest(type: TransactionType, input: Record<string, HashValue>): string {
+  return createHash('sha256')
+    .update(JSON.stringify({ type, ...input }))
+    .digest('hex');
 }
 
 function assertSameRequest(transaction: TransactionModel, requestHash: string): void {
@@ -47,30 +55,22 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
-async function createPendingTransaction(data: {
-  type: MoneyOperationType;
-  amount: Prisma.Decimal;
-  currency: Currency;
-  accountId: string;
-  description?: string;
-  idempotencyKey: string;
-  requestHash: string;
-  initiatedById: string;
-}): Promise<{ transaction: TransactionModel; isReplay: boolean }> {
+async function createPendingTransaction(
+  input: PendingTransactionInput,
+): Promise<{ transaction: TransactionModel; isReplay: boolean }> {
   try {
     const transaction = await prisma.transaction.create({
       data: {
-        type: data.type,
+        type: input.type,
         status: 'PENDING',
-        amount: data.amount,
-        currency: data.currency,
-        ...(data.type === 'DEPOSIT'
-          ? { targetAccountId: data.accountId }
-          : { sourceAccountId: data.accountId }),
-        ...(data.description === undefined ? {} : { description: data.description }),
-        idempotencyKey: data.idempotencyKey,
-        requestHash: data.requestHash,
-        initiatedById: data.initiatedById,
+        amount: input.amount,
+        currency: input.currency,
+        sourceAccountId: input.sourceAccountId ?? null,
+        targetAccountId: input.targetAccountId ?? null,
+        ...(input.description === undefined ? {} : { description: input.description }),
+        idempotencyKey: input.idempotencyKey,
+        requestHash: input.requestHash,
+        initiatedById: input.initiatedById,
       },
     });
 
@@ -78,11 +78,11 @@ async function createPendingTransaction(data: {
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
 
-    // Another identical request may have inserted this key first.
-    const existing = await findByIdempotencyKey(data.initiatedById, data.idempotencyKey);
+    // A concurrent request may have created the same idempotency key first.
+    const existing = await findByIdempotencyKey(input.initiatedById, input.idempotencyKey);
     if (!existing) throw error;
 
-    assertSameRequest(existing, data.requestHash);
+    assertSameRequest(existing, input.requestHash);
     return { transaction: existing, isReplay: true };
   }
 }
@@ -93,7 +93,11 @@ async function createMoneyOperation(
   idempotencyKey: string,
   type: MoneyOperationType,
 ): Promise<{ transaction: TransactionModel; isReplay: boolean }> {
-  const requestHash = hashRequest(type, input);
+  const requestHash = hashRequest(type, {
+    accountId: input.accountId,
+    amount: input.amount,
+    description: input.description ?? null,
+  });
 
   const existing = await findByIdempotencyKey(actor.id, idempotencyKey);
   if (existing) {
@@ -114,7 +118,7 @@ async function createMoneyOperation(
     type,
     amount,
     currency: account.currency,
-    accountId: account.id,
+    ...(type === 'DEPOSIT' ? { targetAccountId: account.id } : { sourceAccountId: account.id }),
     ...(input.description === undefined ? {} : { description: input.description }),
     idempotencyKey,
     requestHash,
@@ -145,4 +149,63 @@ export async function createWithdrawal(
   idempotencyKey: string,
 ) {
   return createMoneyOperation(actor, input, idempotencyKey, 'WITHDRAWAL');
+}
+
+export async function createTransfer(
+  actor: Actor,
+  input: CreateTransferInput,
+  idempotencyKey: string,
+): Promise<{ transaction: TransactionModel; isReplay: boolean }> {
+  const requestHash = hashRequest('TRANSFER', {
+    sourceAccountId: input.sourceAccountId,
+    targetAccountNumber: input.targetAccountNumber,
+    amount: input.amount,
+    description: input.description ?? null,
+  });
+
+  const existing = await findByIdempotencyKey(actor.id, idempotencyKey);
+  if (existing) {
+    assertSameRequest(existing, requestHash);
+    return { transaction: existing, isReplay: true };
+  }
+
+  const source = await prisma.account.findUnique({
+    where: { id: input.sourceAccountId },
+  });
+
+  if (!source || (actor.role !== 'ADMIN' && source.customerId !== actor.customerId)) {
+    throw AppError.notFound('Source account not found');
+  }
+
+  const target = await prisma.account.findUnique({
+    where: { accountNumber: input.targetAccountNumber },
+  });
+
+  if (!target) throw AppError.notFound('Target account not found');
+
+  if (source.id === target.id) {
+    throw AppError.badRequest('Source and target accounts must differ');
+  }
+
+  const amount = toDecimal(input.amount);
+  const pendingResult = await createPendingTransaction({
+    type: 'TRANSFER',
+    amount,
+    currency: source.currency,
+    sourceAccountId: source.id,
+    targetAccountId: target.id,
+    ...(input.description === undefined ? {} : { description: input.description }),
+    idempotencyKey,
+    requestHash,
+    initiatedById: actor.id,
+  });
+
+  if (pendingResult.isReplay) return pendingResult;
+
+  const transaction = await runMoneyTransaction(pendingResult.transaction, [
+    { accountId: source.id, direction: 'DEBIT', amount },
+    { accountId: target.id, direction: 'CREDIT', amount },
+  ]);
+
+  return { transaction, isReplay: false };
 }
