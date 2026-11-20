@@ -14,3 +14,4 @@ accountsRouter.patch(
   authorize('ADMIN'),
   accountsController.updateStatus,
 );
+accountsRouter.get('/:id/transactions', authenticate, accountsController.listTransactions);

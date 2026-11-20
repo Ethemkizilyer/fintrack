@@ -3,6 +3,7 @@ import { AppError } from '@/utils/app-error';
 import * as accountsService from './accounts.service';
 import {
   accountIdParamsSchema,
+  accountTransactionsQuerySchema,
   createAccountSchema,
   listAccountsQuerySchema,
   updateAccountStatusSchema,
@@ -30,4 +31,17 @@ export async function updateStatus(req: Request, res: Response) {
   const { id } = accountIdParamsSchema.parse(req.params);
   const input = updateAccountStatusSchema.parse(req.body);
   res.json({ data: await accountsService.updateAccountStatus(id, input) });
+}
+
+export async function listTransactions(req: Request, res: Response) {
+  if (!req.user) throw AppError.unauthorized('Authentication required');
+
+  const { id } = accountIdParamsSchema.parse(req.params);
+  const query = accountTransactionsQuerySchema.parse(req.query);
+  const result = await accountsService.listAccountTransactions(req.user, id, query);
+
+  res.json({
+    data: result.data,
+    meta: result.meta,
+  });
 }
