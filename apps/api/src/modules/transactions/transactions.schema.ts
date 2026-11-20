@@ -19,6 +19,4 @@ export type CreateTransferInput = z.infer<typeof createTransferSchema>;
 export const createDepositSchema = moneyOperationSchema;
 export const createWithdrawalSchema = moneyOperationSchema;
 
-export const idempotencyKeySchema = z.uuid('Idempotency-Key geçerli bir UUID olmalı');
-
 export type CreateMoneyOperationInput = z.infer<typeof moneyOperationSchema>;

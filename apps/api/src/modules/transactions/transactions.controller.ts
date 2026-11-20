@@ -6,8 +6,8 @@ import {
   createDepositSchema,
   createTransferSchema,
   createWithdrawalSchema,
-  idempotencyKeySchema,
 } from './transactions.schema';
+import { idempotencyKeySchema } from './idempotency';
 
 function getRequestContext(req: Request) {
   if (!req.user) throw AppError.unauthorized('Authentication required');

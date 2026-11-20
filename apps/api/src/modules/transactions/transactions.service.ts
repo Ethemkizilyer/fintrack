@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client';
 import type { TransactionModel } from '@/generated/prisma/models';
 import type { Currency, TransactionType } from '@/generated/prisma/enums';
@@ -8,9 +7,9 @@ import { AppError } from '@/utils/app-error';
 import { toDecimal } from '@/utils/money';
 import type { CreateMoneyOperationInput, CreateTransferInput } from './transactions.schema';
 import { runMoneyTransaction } from './money-movement';
+import { findIdempotentTransaction, hashRequest, isUniqueViolation } from './idempotency';
 
 type MoneyOperationType = Extract<TransactionType, 'DEPOSIT' | 'WITHDRAWAL'>;
-type HashValue = string | null;
 
 type PendingTransactionInput = {
   type: TransactionType;
@@ -23,37 +22,6 @@ type PendingTransactionInput = {
   requestHash: string;
   initiatedById: string;
 };
-
-function hashRequest(type: TransactionType, input: Record<string, HashValue>): string {
-  return createHash('sha256')
-    .update(JSON.stringify({ type, ...input }))
-    .digest('hex');
-}
-
-function assertSameRequest(transaction: TransactionModel, requestHash: string): void {
-  if (transaction.requestHash !== requestHash) {
-    throw new AppError(
-      409,
-      'IDEMPOTENCY_KEY_REUSED',
-      'Idempotency key was already used with a different request',
-    );
-  }
-}
-
-async function findByIdempotencyKey(
-  initiatedById: string,
-  idempotencyKey: string,
-): Promise<TransactionModel | null> {
-  return prisma.transaction.findUnique({
-    where: {
-      initiatedById_idempotencyKey: { initiatedById, idempotencyKey },
-    },
-  });
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
-}
 
 async function createPendingTransaction(
   input: PendingTransactionInput,
@@ -78,11 +46,14 @@ async function createPendingTransaction(
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
 
-    // A concurrent request may have created the same idempotency key first.
-    const existing = await findByIdempotencyKey(input.initiatedById, input.idempotencyKey);
+    const existing = await findIdempotentTransaction(
+      input.initiatedById,
+      input.idempotencyKey,
+      input.requestHash,
+    );
+
     if (!existing) throw error;
 
-    assertSameRequest(existing, input.requestHash);
     return { transaction: existing, isReplay: true };
   }
 }
@@ -99,9 +70,8 @@ async function createMoneyOperation(
     description: input.description ?? null,
   });
 
-  const existing = await findByIdempotencyKey(actor.id, idempotencyKey);
+  const existing = await findIdempotentTransaction(actor.id, idempotencyKey, requestHash);
   if (existing) {
-    assertSameRequest(existing, requestHash);
     return { transaction: existing, isReplay: true };
   }
 
@@ -163,9 +133,8 @@ export async function createTransfer(
     description: input.description ?? null,
   });
 
-  const existing = await findByIdempotencyKey(actor.id, idempotencyKey);
+  const existing = await findIdempotentTransaction(actor.id, idempotencyKey, requestHash);
   if (existing) {
-    assertSameRequest(existing, requestHash);
     return { transaction: existing, isReplay: true };
   }
 

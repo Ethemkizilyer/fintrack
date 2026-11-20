@@ -73,6 +73,69 @@ describe('POST /api/v1/transactions/deposits', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('returns 409 when an idempotency key is reused with different content', async () => {
+    const { user, customer } = await createCustomer();
+    const account = await createAccount(customer.id);
+    const token = await loginUser(user.email);
+    const idempotencyKey = randomUUID();
+
+    const first = await request(app)
+      .post('/api/v1/transactions/deposits')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ accountId: account.id, amount: '25.00' });
+
+    const second = await request(app)
+      .post('/api/v1/transactions/deposits')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ accountId: account.id, amount: '50.00' });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
+
+    const errorBody = second.body as { error: { code: string } };
+    expect(errorBody.error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+
+    const updatedAccount = await prisma.account.findUniqueOrThrow({
+      where: { id: account.id },
+    });
+
+    expect(updatedAccount.balance.toFixed(2)).toBe('25.00');
+  });
+
+  it('processes concurrent requests with the same key only once', async () => {
+    const { user, customer } = await createCustomer();
+    const account = await createAccount(customer.id);
+    const token = await loginUser(user.email);
+    const idempotencyKey = randomUUID();
+
+    const sendDeposit = () =>
+      request(app)
+        .post('/api/v1/transactions/deposits')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', idempotencyKey)
+        .send({ accountId: account.id, amount: '25.00' });
+
+    const responses = await Promise.all([sendDeposit(), sendDeposit()]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 201]);
+
+    const firstBody = responses[0]?.body as DepositResponse;
+    const secondBody = responses[1]?.body as DepositResponse;
+    expect(firstBody.data.id).toBe(secondBody.data.id);
+
+    const updatedAccount = await prisma.account.findUniqueOrThrow({
+      where: { id: account.id },
+    });
+    const transactionCount = await prisma.transaction.count({
+      where: { initiatedById: user.id, idempotencyKey },
+    });
+
+    expect(updatedAccount.balance.toFixed(2)).toBe('25.00');
+    expect(transactionCount).toBe(1);
+  });
 });
 
 describe('POST /api/v1/transactions/withdrawals', () => {
