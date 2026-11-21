@@ -8,6 +8,7 @@ import { toDecimal } from '@/utils/money';
 import type { CreateMoneyOperationInput, CreateTransferInput } from './transactions.schema';
 import { runMoneyTransaction } from './money-movement';
 import { findIdempotentTransaction, hashRequest, isUniqueViolation } from './idempotency';
+import { toPublicTransactionDetail } from './transactions.mapper';
 
 type MoneyOperationType = Extract<TransactionType, 'DEPOSIT' | 'WITHDRAWAL'>;
 
@@ -177,4 +178,38 @@ export async function createTransfer(
   ]);
 
   return { transaction, isReplay: false };
+}
+
+export async function getTransactionById(actor: Actor, id: string) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id },
+    include: {
+      sourceAccount: {
+        select: { id: true, accountNumber: true, customerId: true },
+      },
+      targetAccount: {
+        select: { id: true, accountNumber: true, customerId: true },
+      },
+      ledgerEntries: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          account: {
+            select: { id: true, accountNumber: true, customerId: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!transaction) throw AppError.notFound('Transaction not found');
+
+  const ownsRelatedAccount =
+    transaction.sourceAccount?.customerId === actor.customerId ||
+    transaction.targetAccount?.customerId === actor.customerId;
+
+  if (actor.role !== 'ADMIN' && !ownsRelatedAccount) {
+    throw AppError.notFound('Transaction not found');
+  }
+
+  return toPublicTransactionDetail(transaction, actor);
 }

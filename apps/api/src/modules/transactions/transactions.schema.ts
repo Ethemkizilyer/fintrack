@@ -20,3 +20,6 @@ export const createDepositSchema = moneyOperationSchema;
 export const createWithdrawalSchema = moneyOperationSchema;
 
 export type CreateMoneyOperationInput = z.infer<typeof moneyOperationSchema>;
+export const transactionIdParamsSchema = z.object({
+  id: z.uuid('Geçersiz işlem kimliği'),
+});

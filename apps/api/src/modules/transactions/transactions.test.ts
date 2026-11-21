@@ -15,7 +15,13 @@ type InsufficientFundsResponse = {
     details: { referenceNo: string };
   };
 };
-
+async function postDeposit(token: string, accountId: string, amount: string) {
+  return request(app)
+    .post('/api/v1/transactions/deposits')
+    .set('Authorization', `Bearer ${token}`)
+    .set('Idempotency-Key', randomUUID())
+    .send({ accountId, amount });
+}
 async function fundAccount(token: string, accountId: string): Promise<void> {
   const response = await request(app)
     .post('/api/v1/transactions/deposits')
@@ -295,5 +301,119 @@ describe('POST /api/v1/transactions/transfers', () => {
 
     expect(response.status).toBe(400);
     expect(await prisma.transaction.count()).toBe(0);
+  });
+});
+
+describe('GET /api/v1/transactions/:id', () => {
+  it('shows the owner their account number and masks the counterparty', async () => {
+    const sourceOwner = await createCustomer();
+    const targetOwner = await createCustomer();
+    const source = await createAccount(sourceOwner.customer.id, 'TRY');
+    const target = await createAccount(targetOwner.customer.id, 'TRY');
+    const sourceToken = await loginUser(sourceOwner.user.email);
+    const targetToken = await loginUser(targetOwner.user.email);
+
+    expect((await postDeposit(sourceToken, source.id, '100.00')).status).toBe(201);
+
+    const transfer = await request(app)
+      .post('/api/v1/transactions/transfers')
+      .set('Authorization', `Bearer ${sourceToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        sourceAccountId: source.id,
+        targetAccountNumber: target.accountNumber,
+        amount: '25.00',
+      });
+
+    expect(transfer.status).toBe(201);
+    const transferBody = transfer.body as { data: { id: string } };
+
+    const sourceView = await request(app)
+      .get(`/api/v1/transactions/${transferBody.data.id}`)
+      .set('Authorization', `Bearer ${sourceToken}`);
+
+    expect(sourceView.status).toBe(200);
+    const sourceBody = sourceView.body as {
+      data: {
+        sourceAccount: { accountNumber: string };
+        targetAccount: { accountNumber: string };
+        ledgerEntries: {
+          accountNumber: string;
+          balanceAfter: string | null;
+        }[];
+      };
+    };
+
+    expect(sourceBody.data.sourceAccount.accountNumber).toBe(source.accountNumber);
+    expect(sourceBody.data.targetAccount.accountNumber).toBe(
+      `**** **** **** ${target.accountNumber.slice(-4)}`,
+    );
+    expect(
+      sourceBody.data.ledgerEntries.find((entry) => entry.accountNumber === source.accountNumber)
+        ?.balanceAfter,
+    ).toBe('75.00');
+    expect(
+      sourceBody.data.ledgerEntries.find((entry) => entry.accountNumber.startsWith('****'))
+        ?.balanceAfter,
+    ).toBeNull();
+
+    const targetView = await request(app)
+      .get(`/api/v1/transactions/${transferBody.data.id}`)
+      .set('Authorization', `Bearer ${targetToken}`);
+
+    const targetBody = targetView.body as {
+      data: {
+        sourceAccount: { accountNumber: string };
+        targetAccount: { accountNumber: string };
+      };
+    };
+
+    expect(targetView.status).toBe(200);
+    expect(targetBody.data.sourceAccount.accountNumber).toBe(
+      `**** **** **** ${source.accountNumber.slice(-4)}`,
+    );
+    expect(targetBody.data.targetAccount.accountNumber).toBe(target.accountNumber);
+  });
+
+  it('returns 404 for a customer who owns neither related account', async () => {
+    const sourceOwner = await createCustomer();
+    const targetOwner = await createCustomer();
+    const unrelatedCustomer = await createCustomer();
+
+    const source = await createAccount(sourceOwner.customer.id, 'TRY');
+    const target = await createAccount(targetOwner.customer.id, 'TRY');
+    const unrelatedToken = await loginUser(unrelatedCustomer.user.email);
+    const sourceToken = await loginUser(sourceOwner.user.email);
+
+    await postDeposit(sourceToken, source.id, '100.00');
+
+    const transfer = await request(app)
+      .post('/api/v1/transactions/transfers')
+      .set('Authorization', `Bearer ${sourceToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        sourceAccountId: source.id,
+        targetAccountNumber: target.accountNumber,
+        amount: '10.00',
+      });
+
+    const transferBody = transfer.body as { data: { id: string } };
+
+    const response = await request(app)
+      .get(`/api/v1/transactions/${transferBody.data.id}`)
+      .set('Authorization', `Bearer ${unrelatedToken}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('returns 404 for an unknown transaction id', async () => {
+    const customer = await createCustomer();
+    const token = await loginUser(customer.user.email);
+
+    const response = await request(app)
+      .get(`/api/v1/transactions/${randomUUID()}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(404);
   });
 });
