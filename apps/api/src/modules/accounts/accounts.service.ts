@@ -9,6 +9,9 @@ import type {
   ListAccountsQuery,
   UpdateAccountStatusInput,
 } from './accounts.schema';
+import { toDecimal } from '@/utils/money';
+import { toPublicAccountTransaction } from './account-transactions.mapper';
+import type { AccountTransactionsQuery } from './accounts.schema';
 
 const MAX_ACCOUNT_NUMBER_ATTEMPTS = 3;
 
@@ -79,4 +82,75 @@ export async function updateAccountStatus(id: string, input: UpdateAccountStatus
     data: { status: input.status },
   });
   return toPublicAccount(account);
+}
+
+export async function listAccountTransactions(
+  actor: Actor,
+  accountId: string,
+  query: AccountTransactionsQuery,
+) {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { id: true, customerId: true },
+  });
+
+  if (!account || (actor.role !== 'ADMIN' && account.customerId !== actor.customerId)) {
+    throw AppError.notFound('Account not found');
+  }
+
+  const where: Prisma.TransactionWhereInput = {
+    OR: [{ sourceAccountId: accountId }, { targetAccountId: accountId }],
+    ...(query.type ? { type: query.type } : {}),
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.from || query.to
+      ? {
+          createdAt: {
+            ...(query.from ? { gte: new Date(query.from) } : {}),
+            ...(query.to ? { lt: new Date(query.to) } : {}),
+          },
+        }
+      : {}),
+    ...(query.minAmount || query.maxAmount
+      ? {
+          amount: {
+            ...(query.minAmount ? { gte: toDecimal(query.minAmount) } : {}),
+            ...(query.maxAmount ? { lte: toDecimal(query.maxAmount) } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const orderBy: Prisma.TransactionOrderByWithRelationInput[] = [
+    query.sort === 'amount' ? { amount: query.order } : { createdAt: query.order },
+    { id: query.order },
+  ];
+
+  const [transactions, total] = await prisma.$transaction(
+    [
+      prisma.transaction.findMany({
+        where,
+        orderBy,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        include: {
+          ledgerEntries: {
+            where: { accountId },
+            select: { direction: true, balanceAfter: true },
+          },
+        },
+      }),
+      prisma.transaction.count({ where }),
+    ],
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+
+  return {
+    data: transactions.map((transaction) => toPublicAccountTransaction(transaction, accountId)),
+    meta: {
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    },
+  };
 }
