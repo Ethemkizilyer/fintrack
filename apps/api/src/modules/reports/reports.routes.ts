@@ -1,0 +1,7 @@
+import { Router } from 'express';
+import { authenticate } from '@/middlewares/authenticate';
+import * as reportsController from './reports.controller';
+
+export const reportsRouter = Router();
+
+reportsRouter.get('/summary', authenticate, reportsController.getSummary);

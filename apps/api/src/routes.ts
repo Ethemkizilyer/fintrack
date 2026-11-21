@@ -4,7 +4,7 @@ import { authRouter } from './modules/auth/auth.routes';
 import { customersRouter } from './modules/customers/customers.routes';
 import { accountsRouter } from './modules/accounts/accounts.routes';
 import { transactionsRouter } from './modules/transactions/transactions.routes';
-
+import { reportsRouter } from './modules/reports/reports.routes';
 export const router = Router();
 
 router.use('/health', healthRouter);
@@ -12,3 +12,4 @@ router.use('/auth', authRouter);
 router.use('/customers', customersRouter);
 router.use('/accounts', accountsRouter);
 router.use('/transactions', transactionsRouter);
+router.use('/reports', reportsRouter);
