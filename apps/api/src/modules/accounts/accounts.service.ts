@@ -56,6 +56,23 @@ export async function listAccounts(actor: Actor, query: ListAccountsQuery) {
     ...(query.status ? { status: query.status } : {}),
   };
 
+  if (actor.role === 'ADMIN') {
+    const accounts = await prisma.account.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: {
+          select: { firstName: true, lastName: true },
+        },
+      },
+    });
+
+    return accounts.map((account) => ({
+      ...toPublicAccount(account),
+      owner: account.customer,
+    }));
+  }
+
   const accounts = await prisma.account.findMany({
     where,
     orderBy: { createdAt: 'desc' },
