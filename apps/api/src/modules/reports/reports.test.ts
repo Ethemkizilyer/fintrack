@@ -3,12 +3,23 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { app } from '@/app';
 import { createAccount, createCustomer, loginAs, loginUser } from '../../../tests/helpers';
+import { prisma } from '@/lib/prisma';
 
 type SummaryRow = {
   currency: string;
   totalCredits: string;
   totalDebits: string;
   net: string;
+};
+
+type PeriodicResponse = {
+  data: {
+    periodStart: string;
+    currency: string;
+    totalCredits: string;
+    totalDebits: string;
+    transactionCount: number;
+  }[];
 };
 
 type SummaryResponse = {
@@ -159,5 +170,87 @@ describe('GET /api/v1/reports/summary', () => {
     expect(reversedRange.status).toBe(400);
     expect(rangeOverOneYear.status).toBe(400);
     expect(unauthenticated.status).toBe(401);
+  });
+});
+
+describe('GET /api/v1/reports/periodic', () => {
+  it('returns daily totals scoped to the customer and account currency', async () => {
+    const owner = await createCustomer();
+    const otherOwner = await createCustomer();
+    const account = await createAccount(owner.customer.id, 'TRY');
+    const otherAccount = await createAccount(otherOwner.customer.id, 'TRY');
+    const ownerToken = await loginUser(owner.user.email);
+    const otherToken = await loginUser(otherOwner.user.email);
+
+    expect((await postDeposit(ownerToken, account.id, '10.00')).status).toBe(201);
+    expect((await postDeposit(otherToken, otherAccount.id, '90.00')).status).toBe(201);
+
+    const response = await request(app)
+      .get('/api/v1/reports/periodic')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .query({ ...createDateRange(), period: 'day' });
+
+    expect(response.status).toBe(200);
+    const body = response.body as PeriodicResponse;
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({
+      currency: 'TRY',
+      totalCredits: '10.00',
+      totalDebits: '0.00',
+      transactionCount: 1,
+    });
+
+    const forbiddenAccount = await request(app)
+      .get('/api/v1/reports/periodic')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .query({
+        ...createDateRange(),
+        period: 'day',
+        accountId: otherAccount.id,
+      });
+
+    expect(forbiddenAccount.status).toBe(404);
+  });
+
+  it('returns 400 for an unsupported period or invalid date range', async () => {
+    const customer = await createCustomer();
+    const token = await loginUser(customer.user.email);
+
+    const unsupportedPeriod = await request(app)
+      .get('/api/v1/reports/periodic')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ ...createDateRange(), period: 'year' });
+
+    const reversedRange = await request(app)
+      .get('/api/v1/reports/periodic')
+      .set('Authorization', `Bearer ${token}`)
+      .query({
+        from: '2026-11-21T00:00:00.000Z',
+        to: '2026-11-20T00:00:00.000Z',
+        period: 'day',
+      });
+
+    expect(unsupportedPeriod.status).toBe(400);
+    expect(reversedRange.status).toBe(400);
+  });
+
+  it('buckets 21:30 UTC into the next Istanbul calendar day', async () => {
+    const rows = await prisma.$queryRaw<{ localDate: string; periodStart: Date }[]>`
+      SELECT
+        to_char(
+          date_trunc(
+            'day',
+            TIMESTAMPTZ '2026-11-22T21:30:00Z' AT TIME ZONE 'Europe/Istanbul'
+          ),
+          'YYYY-MM-DD'
+        ) AS "localDate",
+        date_trunc(
+          'day',
+          TIMESTAMPTZ '2026-11-22T21:30:00Z' AT TIME ZONE 'Europe/Istanbul'
+        ) AT TIME ZONE 'Europe/Istanbul' AS "periodStart"
+    `;
+
+    expect(rows[0]?.localDate).toBe('2026-11-23');
+    expect(rows[0]?.periodStart.toISOString()).toBe('2026-11-22T21:00:00.000Z');
   });
 });
