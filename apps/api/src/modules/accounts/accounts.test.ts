@@ -78,6 +78,30 @@ describe('GET /api/v1/accounts + /:id', () => {
     expect(body.data[0]?.customerId).toBe(own.id);
   });
 
+  it('includes only the account owner name in admin account listings', async () => {
+    const { customer } = await createCustomer();
+    const account = await createAccount(customer.id);
+
+    const res = await request(app)
+      .get('/api/v1/accounts')
+      .set('Authorization', `Bearer ${await ADMIN()}`);
+
+    const body = res.body as {
+      data: {
+        id: string;
+        owner?: { firstName: string; lastName: string };
+      }[];
+    };
+    const listedAccount = body.data.find((item) => item.id === account.id);
+
+    expect(res.status).toBe(200);
+    expect(listedAccount?.owner).toEqual({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+    });
+    expect(listedAccount?.owner).not.toHaveProperty('nationalId');
+  });
+
   it('returns 404 for another customers account', async () => {
     const { user } = await createCustomer();
     const { customer: other } = await createCustomer();

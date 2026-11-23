@@ -248,6 +248,23 @@ const TransactionStatsSchema = z.object({
   ),
 });
 
+const ExchangeRatesSchema = z
+  .object({
+    source: z.literal('TCMB'),
+    bulletinDate: z.iso.date(),
+    fetchedAt: DateTimeSchema,
+    isStale: z.boolean(),
+    rates: z.array(
+      z.object({
+        currency: z.enum(['USD', 'EUR']),
+        unit: z.string(),
+        forexBuying: z.string(),
+        forexSelling: z.string(),
+      }),
+    ),
+  })
+  .openapi('ExchangeRates');
+
 const ErrorEnvelopeSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -608,6 +625,25 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'get',
+  path: '/exchange-rates',
+  tags: ['Exchange Rates'],
+  summary: 'Get TCMB USD and EUR indicative rates',
+  description:
+    'Rates are informational only and are not used to convert account balances or execute money transfers.',
+  security: bearerSecurity,
+  responses: {
+    200: successResponse(ExchangeRatesSchema, 'Latest cached TCMB bulletin'),
+    ...commonErrors,
+    503: errorResponse(
+      'Exchange rate source is unavailable',
+      'EXCHANGE_RATE_UNAVAILABLE',
+      'Exchange rates are temporarily unavailable',
+    ),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
   path: '/reports/summary',
   tags: ['Reports'],
   summary: 'Get money movement totals by currency',
@@ -680,5 +716,6 @@ export const openApiDocument = new OpenApiGeneratorV3(registry.definitions).gene
     { name: 'Accounts' },
     { name: 'Transactions' },
     { name: 'Reports' },
+    { name: 'Exchange Rates' },
   ],
 });

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, typecheck, test
+    name: Lint, typecheck, test, web build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -41,6 +41,7 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
       JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
       WEB_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
 
     steps:
       - name: Check out repository
@@ -63,6 +64,11 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build web application
+        run: npm run build -w @fintrack/web
+        env:
+          NODE_ENV: production
 
       - name: Test
         run: npm test

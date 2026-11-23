@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { compareMoneyAmounts } from '@fintrack/shared';
 import { amountSchema, formatAmount, toDecimal } from './money';
 
 describe('amountSchema', () => {
@@ -15,6 +16,17 @@ describe('amountSchema', () => {
       expect(amountSchema.safeParse(value).success).toBe(false);
     },
   );
+});
+
+describe('compareMoneyAmounts', () => {
+  it.each([
+    ['1.2', '1.20', 0],
+    ['0.99', '1', -1],
+    ['1500.50', '1500.49', 1],
+    ['999999999999999.99', '1000000000000000.00', -1],
+  ])('compares %s and %s without floating-point conversion', (left, right, expected) => {
+    expect(compareMoneyAmounts(left, right)).toBe(expected);
+  });
 });
 
 describe('Decimal arithmetic', () => {

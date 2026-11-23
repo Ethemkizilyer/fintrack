@@ -5,6 +5,7 @@ import { customersRouter } from './modules/customers/customers.routes';
 import { accountsRouter } from './modules/accounts/accounts.routes';
 import { transactionsRouter } from './modules/transactions/transactions.routes';
 import { reportsRouter } from './modules/reports/reports.routes';
+import { exchangeRatesRouter } from './modules/exchange-rates/exchange-rates.routes';
 export const router = Router();
 
 router.use('/health', healthRouter);
@@ -13,3 +14,4 @@ router.use('/customers', customersRouter);
 router.use('/accounts', accountsRouter);
 router.use('/transactions', transactionsRouter);
 router.use('/reports', reportsRouter);
+router.use('/exchange-rates', exchangeRatesRouter);

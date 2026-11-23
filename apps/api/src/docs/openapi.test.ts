@@ -28,6 +28,7 @@ describe('OpenAPI documentation', () => {
         '/reports/periodic',
         '/reports/accounts/{id}/statement',
         '/reports/transaction-stats',
+        '/exchange-rates',
       ]),
     );
 

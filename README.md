@@ -4,22 +4,25 @@ FinTrack, müşteri hesapları, para yatırma/çekme, hesaplar arası transfer v
 
 ## Teknolojiler
 
-| Katman             | Teknoloji                                 |
-| ------------------ | ----------------------------------------- |
-| Dil                | TypeScript (strict)                       |
-| Backend            | Node.js 22, Express 5, Prisma 7, Zod 4    |
-| Veritabanı         | PostgreSQL 17                             |
-| Kimlik doğrulama   | JWT access token, httpOnly refresh cookie |
-| Loglama            | Pino                                      |
-| API dokümantasyonu | OpenAPI 3, Swagger UI                     |
-| Test               | Vitest, Supertest                         |
-| Altyapı            | Docker, Docker Compose                    |
+| Katman              | Teknoloji                                 |
+| ------------------- | ----------------------------------------- |
+| Dil                 | TypeScript (strict)                       |
+| Backend             | Node.js 22, Express 5, Prisma 7, Zod 4    |
+| Frontend            | Next.js App Router, React 19, MUI         |
+| İstemci veri/oturum | TanStack Query, Axios, Zustand            |
+| Veritabanı          | PostgreSQL 17                             |
+| Kimlik doğrulama    | JWT access token, httpOnly refresh cookie |
+| Loglama             | Pino                                      |
+| API dokümantasyonu  | OpenAPI 3, Swagger UI                     |
+| Test                | Vitest, Supertest                         |
+| Altyapı             | Docker, Docker Compose                    |
 
 ## Mimari
 
 ```mermaid
 flowchart LR
-    Client[API istemcisi / Swagger UI] -->|HTTP JSON| API[Express API]
+    Web[Next.js web uygulaması] -->|HTTP JSON + cookie| API[Express API]
+    Client[Swagger UI] -->|HTTP JSON| API
     API -->|Prisma ve SQL| DB[(PostgreSQL)]
     DB --> Transactions[transactions]
     DB --> Ledger[ledger_entries]
@@ -38,6 +41,7 @@ API katmanları `routes -> controller -> service -> Prisma` şeklindedir. Para h
 - IP ve kullanıcı bazlı rate limit
 - Eski `PENDING` işlemleri `FAILED / STALE_PENDING` olarak işaretleyen cleanup
 - Swagger UI üzerinden etkileşimli API dokümantasyonu
+- Next.js web iskeleti, ortak Zod şemaları ve merkezi API istemcisi
 
 ## Gereksinimler
 
@@ -52,6 +56,7 @@ Temiz checkout'ta ortam dosyalarını oluştur:
 ```cmd
 copy .env.example .env
 copy apps\api\.env.example apps\api\.env
+copy apps\web\.env.example apps\web\.env.local
 ```
 
 Var olan `.env` dosyalarının üzerine yazma; eksik değişkenleri mevcut dosyaya ekle. `apps/api/.env` içindeki `DATABASE_URL` değerini, kök `.env` dosyasındaki PostgreSQL kullanıcı adı, parola, veritabanı ve portla eşleştir. Yerel API bağlantısında host `localhost` olmalı.
@@ -63,10 +68,27 @@ npm install
 docker compose up -d
 npm run db:migrate -w apps/api
 npm run db:seed -w apps/api
+npm run dev
+```
+
+`npm run dev` web uygulamasını `http://localhost:3000` adresinde açar. API'yi ikinci terminalde başlat:
+
+```cmd
 npm run dev:api
 ```
 
-API varsayılan olarak `http://localhost:3001` adresinde çalışır. Yerel seed demo kullanıcılarını oluşturur; üretim Compose ortamı demo kullanıcılarını otomatik oluşturmaz.
+Web ortam dosyasındaki `NEXT_PUBLIC_API_URL`, API'nin `/api/v1` adresini göstermelidir. API'nin `WEB_URL` değeri de web uygulamasının origin'iyle (`http://localhost:3000`) eşleşmelidir; refresh cookie istekleri bu CORS ayarına bağlıdır. Yerel seed demo kullanıcılarını oluşturur; üretim Compose ortamı demo kullanıcılarını otomatik oluşturmaz.
+
+## Web ekranları
+
+- `/login`: yönetici veya müşteri girişi.
+- `/dashboard`: rol kapsamına göre hesaplar; müşteriler kendi hesaplarını görür, yöneticiler tüm hesapları görür.
+- `/dashboard/accounts/new`: müşteri hesabı açma.
+- `/dashboard/deposit`, `/dashboard/withdraw`, `/dashboard/transfer`: idempotent para hareketleri.
+- `/dashboard/transactions` ve `/dashboard/reports`: hesap hareketleri, işlem detayı, raporlar ve ekstre.
+- `/admin/customers`, `/admin/customers/new`, `/admin/customers/:id`: yönetici müşteri listesi, müşteri oluşturma ve profil/durum yönetimi.
+
+Yönetici ve müşteri giriş bilgileri, yerel seed yapılandırmasında belirlenen şifreleri kullanır. Para ve müşteri yetkileri API tarafından ayrıca doğrulanır; arayüzdeki rol koruması yalnızca gezinme deneyimini düzenler.
 
 ## Production benzeri Docker ortamı
 
@@ -109,11 +131,9 @@ API testleri `fintrack_test` veritabanını kullanır. Test setup'ı tabloları 
 ```text
 apps/
   api/       Express API, Prisma şeması ve migration'lar
-  web/       Web uygulaması için ayrılmış workspace
+  web/       Next.js App Router, MUI ve feature tabanlı istemci kodu
 packages/
-  shared/    Ortak şemalar ve tipler için workspace
+  shared/    API ve web arasında paylaşılan Zod şemaları ve tipler
 compose.yaml
 compose.prod.yaml
 ```
-
-Web arayüzü bu README sürümünde kapsam dışıdır; şu anki odak API ve üretim benzeri Docker ortamıdır.
