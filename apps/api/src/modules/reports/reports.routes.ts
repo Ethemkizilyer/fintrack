@@ -6,3 +6,4 @@ export const reportsRouter = Router();
 
 reportsRouter.get('/summary', authenticate, reportsController.getSummary);
 reportsRouter.get('/periodic', authenticate, reportsController.getPeriodic);
+reportsRouter.get('/accounts/:id/statement', authenticate, reportsController.getStatement);
