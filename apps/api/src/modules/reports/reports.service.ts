@@ -5,14 +5,19 @@ import {
   toPublicAccountStatement,
   toPublicPeriodicReport,
   toPublicReportSummary,
+  toPublicTransactionStats,
   type AccountStatementRecord,
+  type FailureReasonStatsRecord,
   type PeriodicReportRecord,
   type ReportSummaryRecord,
+  type TransactionStatsGroupRecord,
+  type TransactionStatsSummaryRecord,
 } from './reports.mapper';
 import type {
   ReportPeriodicQuery,
   ReportSummaryQuery,
   ReportStatementQuery,
+  ReportTransactionStatsQuery,
 } from './reports.schema';
 import { Prisma } from '@/generated/prisma/client';
 
@@ -176,6 +181,102 @@ export async function getAccountStatement(
       };
 
       return toPublicAccountStatement(statement);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+}
+
+export async function getTransactionStats(actor: Actor, query: ReportTransactionStatsQuery) {
+  const { customerId } = await resolveReportScope(actor);
+  const from = new Date(query.from);
+  const to = new Date(query.to);
+
+  return prisma.$transaction(
+    async (tx) => {
+      const summaryRows = await tx.$queryRaw<TransactionStatsSummaryRecord[]>`
+        SELECT
+          COUNT(*)::int AS "totalTransactions",
+          COUNT(*) FILTER (WHERE t.status = 'COMPLETED')::int AS "completedTransactions",
+          COUNT(*) FILTER (WHERE t.status = 'FAILED')::int AS "failedTransactions",
+          COUNT(*) FILTER (WHERE t.status = 'PENDING')::int AS "pendingTransactions",
+          COALESCE(
+            ROUND(
+              100.0 * COUNT(*) FILTER (WHERE t.status = 'COMPLETED')
+              / NULLIF(
+                  COUNT(*) FILTER (WHERE t.status IN ('COMPLETED', 'FAILED')),
+                  0
+                ),
+              2
+            ),
+            0
+          )::float8 AS "successRate"
+        FROM transactions AS t
+        WHERE t.created_at >= ${from}::timestamptz
+          AND t.created_at < ${to}::timestamptz
+          AND (
+            ${customerId}::uuid IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM accounts AS owned
+              WHERE owned.customer_id = ${customerId}::uuid
+                AND owned.id IN (t.source_account_id, t.target_account_id)
+            )
+          )
+      `;
+
+      const groups = await tx.$queryRaw<TransactionStatsGroupRecord[]>`
+        SELECT
+          t.type::text AS type,
+          t.status::text AS status,
+          COUNT(*)::int AS "count",
+          COALESCE(SUM(t.amount), 0)::text AS "totalAmount"
+        FROM transactions AS t
+        WHERE t.created_at >= ${from}::timestamptz
+          AND t.created_at < ${to}::timestamptz
+          AND (
+            ${customerId}::uuid IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM accounts AS owned
+              WHERE owned.customer_id = ${customerId}::uuid
+                AND owned.id IN (t.source_account_id, t.target_account_id)
+            )
+          )
+        GROUP BY t.type, t.status
+        ORDER BY t.type, t.status
+      `;
+
+      const failures = await tx.$queryRaw<FailureReasonStatsRecord[]>`
+        SELECT
+          t.failure_reason AS reason,
+          COUNT(*)::int AS "count"
+        FROM transactions AS t
+        WHERE t.created_at >= ${from}::timestamptz
+          AND t.created_at < ${to}::timestamptz
+          AND t.status = 'FAILED'
+          AND t.failure_reason IS NOT NULL
+          AND (
+            ${customerId}::uuid IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM accounts AS owned
+              WHERE owned.customer_id = ${customerId}::uuid
+                AND owned.id IN (t.source_account_id, t.target_account_id)
+            )
+          )
+        GROUP BY t.failure_reason
+        ORDER BY COUNT(*) DESC, t.failure_reason
+      `;
+
+      const summary = summaryRows[0] ?? {
+        totalTransactions: 0,
+        completedTransactions: 0,
+        failedTransactions: 0,
+        pendingTransactions: 0,
+        successRate: 0,
+      };
+
+      return toPublicTransactionStats(summary, groups, failures, from, to);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
   );

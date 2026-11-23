@@ -53,6 +53,28 @@ type DepositResponse = {
   data: { id: string };
 };
 
+type TransactionStatsResponse = {
+  data: {
+    from: string;
+    to: string;
+    totalTransactions: number;
+    completedTransactions: number;
+    failedTransactions: number;
+    pendingTransactions: number;
+    successRate: number;
+    byTypeAndStatus: {
+      type: string;
+      status: string;
+      count: number;
+      totalAmount: string;
+    }[];
+    failuresByReason: {
+      reason: string;
+      count: number;
+    }[];
+  };
+};
+
 async function postDeposit(token: string, accountId: string, amount: string) {
   return request(app)
     .post('/api/v1/transactions/deposits')
@@ -395,6 +417,121 @@ describe('GET /api/v1/reports/accounts/:id/statement', () => {
     const unauthenticated = await request(app).get(path).query(createDateRange());
 
     expect(invalidId.status).toBe(400);
+    expect(reversedRange.status).toBe(400);
+    expect(rangeOverOneYear.status).toBe(400);
+    expect(unauthenticated.status).toBe(401);
+  });
+});
+
+describe('GET /api/v1/reports/transaction-stats', () => {
+  it('groups transactions and scopes customer results while admins see all', async () => {
+    const owner = await createCustomer();
+    const otherOwner = await createCustomer();
+    const account = await createAccount(owner.customer.id, 'TRY');
+    const otherAccount = await createAccount(otherOwner.customer.id, 'TRY');
+    const ownerToken = await loginUser(owner.user.email);
+    const otherToken = await loginUser(otherOwner.user.email);
+    const adminToken = await loginAs('ADMIN');
+
+    expect((await postDeposit(ownerToken, account.id, '80.00')).status).toBe(201);
+    expect((await postWithdrawal(ownerToken, account.id, '100.00')).status).toBe(422);
+    expect((await postDeposit(otherToken, otherAccount.id, '40.00')).status).toBe(201);
+
+    const customerResponse = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .query(createDateRange());
+
+    expect(customerResponse.status).toBe(200);
+    const customerBody = customerResponse.body as TransactionStatsResponse;
+
+    expect(customerBody.data).toMatchObject({
+      totalTransactions: 2,
+      completedTransactions: 1,
+      failedTransactions: 1,
+      pendingTransactions: 0,
+      successRate: 50,
+    });
+    expect(customerBody.data.byTypeAndStatus).toContainEqual({
+      type: 'DEPOSIT',
+      status: 'COMPLETED',
+      count: 1,
+      totalAmount: '80.00',
+    });
+    expect(customerBody.data.byTypeAndStatus).toContainEqual({
+      type: 'WITHDRAWAL',
+      status: 'FAILED',
+      count: 1,
+      totalAmount: '100.00',
+    });
+    expect(customerBody.data.failuresByReason).toEqual([
+      { reason: 'INSUFFICIENT_FUNDS', count: 1 },
+    ]);
+
+    const adminResponse = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .query(createDateRange());
+
+    expect(adminResponse.status).toBe(200);
+    const adminBody = adminResponse.body as TransactionStatsResponse;
+
+    expect(adminBody.data).toMatchObject({
+      totalTransactions: 3,
+      completedTransactions: 2,
+      failedTransactions: 1,
+      pendingTransactions: 0,
+      successRate: 66.67,
+    });
+  });
+
+  it('returns zero statistics when there are no transactions', async () => {
+    const customer = await createCustomer();
+    const token = await loginUser(customer.user.email);
+
+    const response = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .set('Authorization', `Bearer ${token}`)
+      .query(createDateRange());
+
+    expect(response.status).toBe(200);
+    const body = response.body as TransactionStatsResponse;
+
+    expect(body.data).toMatchObject({
+      totalTransactions: 0,
+      completedTransactions: 0,
+      failedTransactions: 0,
+      pendingTransactions: 0,
+      successRate: 0,
+      byTypeAndStatus: [],
+      failuresByReason: [],
+    });
+  });
+
+  it('validates the date range and requires authentication', async () => {
+    const customer = await createCustomer();
+    const token = await loginUser(customer.user.email);
+
+    const reversedRange = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .set('Authorization', `Bearer ${token}`)
+      .query({
+        from: '2026-11-21T00:00:00.000Z',
+        to: '2026-11-20T00:00:00.000Z',
+      });
+
+    const rangeOverOneYear = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .set('Authorization', `Bearer ${token}`)
+      .query({
+        from: '2025-01-01T00:00:00.000Z',
+        to: '2026-01-02T00:00:00.000Z',
+      });
+
+    const unauthenticated = await request(app)
+      .get('/api/v1/reports/transaction-stats')
+      .query(createDateRange());
+
     expect(reversedRange.status).toBe(400);
     expect(rangeOverOneYear.status).toBe(400);
     expect(unauthenticated.status).toBe(401);
