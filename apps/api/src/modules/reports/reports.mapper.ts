@@ -1,5 +1,5 @@
 import type { Prisma } from '@/generated/prisma/client';
-import type { Currency } from '@/generated/prisma/enums';
+import type { Currency, TransactionStatus, TransactionType } from '@/generated/prisma/enums';
 import { formatAmount, toDecimal } from '@/utils/money';
 
 export type ReportSummaryRecord = {
@@ -15,6 +15,26 @@ export type PeriodicReportRecord = {
   totalCredits: string;
   totalDebits: string;
   transactionCount: number;
+};
+
+export type TransactionStatsSummaryRecord = {
+  totalTransactions: number;
+  completedTransactions: number;
+  failedTransactions: number;
+  pendingTransactions: number;
+  successRate: number;
+};
+
+export type TransactionStatsGroupRecord = {
+  type: TransactionType;
+  status: TransactionStatus;
+  count: number;
+  totalAmount: string;
+};
+
+export type FailureReasonStatsRecord = {
+  reason: string;
+  count: number;
 };
 
 export function toPublicReportSummary(record: ReportSummaryRecord) {
@@ -79,5 +99,33 @@ export function toPublicAccountStatement(record: AccountStatementRecord) {
       createdAt: movement.createdAt.toISOString(),
     })),
     closingBalance: formatAmount(record.closingBalance),
+  };
+}
+
+export function toPublicTransactionStats(
+  summary: TransactionStatsSummaryRecord,
+  groups: TransactionStatsGroupRecord[],
+  failures: FailureReasonStatsRecord[],
+  from: Date,
+  to: Date,
+) {
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    totalTransactions: summary.totalTransactions,
+    completedTransactions: summary.completedTransactions,
+    failedTransactions: summary.failedTransactions,
+    pendingTransactions: summary.pendingTransactions,
+    successRate: summary.successRate,
+    byTypeAndStatus: groups.map((group) => ({
+      type: group.type,
+      status: group.status,
+      count: group.count,
+      totalAmount: formatAmount(toDecimal(group.totalAmount)),
+    })),
+    failuresByReason: failures.map((failure) => ({
+      reason: failure.reason,
+      count: failure.count,
+    })),
   };
 }
