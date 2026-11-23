@@ -26,6 +26,33 @@ type SummaryResponse = {
   data: SummaryRow[];
 };
 
+type StatementResponse = {
+  data: {
+    accountId: string;
+    currency: string;
+    from: string;
+    to: string;
+    openingBalance: string;
+    closingBalance: string;
+    movements: {
+      id: string;
+      transactionId: string;
+      referenceNo: string;
+      type: string;
+      status: string;
+      direction: string;
+      amount: string;
+      balanceAfter: string;
+      description: string | null;
+      createdAt: string;
+    }[];
+  };
+};
+
+type DepositResponse = {
+  data: { id: string };
+};
+
 async function postDeposit(token: string, accountId: string, amount: string) {
   return request(app)
     .post('/api/v1/transactions/deposits')
@@ -252,5 +279,124 @@ describe('GET /api/v1/reports/periodic', () => {
 
     expect(rows[0]?.localDate).toBe('2026-11-23');
     expect(rows[0]?.periodStart.toISOString()).toBe('2026-11-22T21:00:00.000Z');
+  });
+});
+
+describe('GET /api/v1/reports/accounts/:id/statement', () => {
+  it('returns opening balance, ordered movements, and closing balance', async () => {
+    const owner = await createCustomer();
+    const account = await createAccount(owner.customer.id, 'TRY');
+    const token = await loginUser(owner.user.email);
+
+    const openingDeposit = await postDeposit(token, account.id, '100.00');
+    expect(openingDeposit.status).toBe(201);
+
+    const openingBody = openingDeposit.body as DepositResponse;
+    const openingEntry = await prisma.ledgerEntry.findFirstOrThrow({
+      where: { transactionId: openingBody.data.id, accountId: account.id },
+      select: { createdAt: true },
+    });
+
+    const from = new Date(openingEntry.createdAt.getTime() + 1).toISOString();
+
+    expect((await postDeposit(token, account.id, '30.00')).status).toBe(201);
+    expect((await postWithdrawal(token, account.id, '10.00')).status).toBe(201);
+
+    const to = new Date(Date.now() + 60_000).toISOString();
+    const response = await request(app)
+      .get(`/api/v1/reports/accounts/${account.id}/statement`)
+      .set('Authorization', `Bearer ${token}`)
+      .query({ from, to });
+
+    expect(response.status).toBe(200);
+    const body = response.body as StatementResponse;
+
+    expect(body.data.openingBalance).toBe('100.00');
+    expect(body.data.closingBalance).toBe('120.00');
+    expect(
+      body.data.movements.map(({ direction, amount, balanceAfter }) => ({
+        direction,
+        amount,
+        balanceAfter,
+      })),
+    ).toEqual([
+      { direction: 'CREDIT', amount: '30.00', balanceAfter: '130.00' },
+      { direction: 'DEBIT', amount: '10.00', balanceAfter: '120.00' },
+    ]);
+  });
+
+  it('returns zero balances for an account without ledger entries', async () => {
+    const owner = await createCustomer();
+    const account = await createAccount(owner.customer.id, 'TRY');
+    const token = await loginUser(owner.user.email);
+
+    const response = await request(app)
+      .get(`/api/v1/reports/accounts/${account.id}/statement`)
+      .set('Authorization', `Bearer ${token}`)
+      .query(createDateRange());
+
+    expect(response.status).toBe(200);
+    const body = response.body as StatementResponse;
+
+    expect(body.data.openingBalance).toBe('0.00');
+    expect(body.data.movements).toEqual([]);
+    expect(body.data.closingBalance).toBe('0.00');
+  });
+
+  it('returns 404 for another customer account and allows admins', async () => {
+    const owner = await createCustomer();
+    const otherOwner = await createCustomer();
+    const otherAccount = await createAccount(otherOwner.customer.id, 'TRY');
+    const ownerToken = await loginUser(owner.user.email);
+    const adminToken = await loginAs('ADMIN');
+    const path = `/api/v1/reports/accounts/${otherAccount.id}/statement`;
+
+    const customerResponse = await request(app)
+      .get(path)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .query(createDateRange());
+
+    const adminResponse = await request(app)
+      .get(path)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .query(createDateRange());
+
+    expect(customerResponse.status).toBe(404);
+    expect(adminResponse.status).toBe(200);
+  });
+
+  it('validates account ID and date range, and requires authentication', async () => {
+    const owner = await createCustomer();
+    const account = await createAccount(owner.customer.id, 'TRY');
+    const token = await loginUser(owner.user.email);
+    const path = `/api/v1/reports/accounts/${account.id}/statement`;
+
+    const invalidId = await request(app)
+      .get('/api/v1/reports/accounts/not-a-uuid/statement')
+      .set('Authorization', `Bearer ${token}`)
+      .query(createDateRange());
+
+    const reversedRange = await request(app)
+      .get(path)
+      .set('Authorization', `Bearer ${token}`)
+      .query({
+        from: '2026-11-21T00:00:00.000Z',
+        to: '2026-11-20T00:00:00.000Z',
+      });
+
+    const rangeOverOneYear = await request(app)
+      .get(path)
+      .set('Authorization', `Bearer ${token}`)
+      .query({
+        from: '2025-01-01T00:00:00.000Z',
+        to: '2026-01-02T00:00:00.000Z',
+      });
+
+    const unauthenticated = await request(app).get(path).query(createDateRange());
+
+    expect(invalidId.status).toBe(400);
+    expect(reversedRange.status).toBe(400);
+    expect(rangeOverOneYear.status).toBe(400);
+    expect(unauthenticated.status).toBe(401);
   });
 });

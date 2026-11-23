@@ -2,12 +2,19 @@ import type { Actor } from '@/types/actor';
 import { prisma } from '@/lib/prisma';
 import { AppError } from '@/utils/app-error';
 import {
+  toPublicAccountStatement,
   toPublicPeriodicReport,
   toPublicReportSummary,
+  type AccountStatementRecord,
   type PeriodicReportRecord,
   type ReportSummaryRecord,
 } from './reports.mapper';
-import type { ReportPeriodicQuery, ReportSummaryQuery } from './reports.schema';
+import type {
+  ReportPeriodicQuery,
+  ReportSummaryQuery,
+  ReportStatementQuery,
+} from './reports.schema';
+import { Prisma } from '@/generated/prisma/client';
 
 type ReportScope = {
   customerId: string | null;
@@ -108,4 +115,68 @@ export async function getPeriodic(actor: Actor, query: ReportPeriodicQuery) {
   `;
 
   return rows.map(toPublicPeriodicReport);
+}
+
+export async function getAccountStatement(
+  actor: Actor,
+  accountId: string,
+  query: ReportStatementQuery,
+) {
+  await resolveReportScope(actor, accountId);
+
+  const from = new Date(query.from);
+  const to = new Date(query.to);
+
+  return prisma.$transaction(
+    async (tx) => {
+      const account = await tx.account.findUnique({
+        where: { id: accountId },
+        select: { id: true, currency: true },
+      });
+
+      if (!account) throw AppError.notFound('Account not found');
+
+      const openingEntry = await tx.ledgerEntry.findFirst({
+        where: { accountId, createdAt: { lt: from } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { balanceAfter: true },
+      });
+
+      const movements = await tx.ledgerEntry.findMany({
+        where: { accountId, createdAt: { gte: from, lt: to } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        include: {
+          transaction: {
+            select: {
+              referenceNo: true,
+              type: true,
+              status: true,
+              description: true,
+            },
+          },
+        },
+      });
+
+      const closingEntry = await tx.ledgerEntry.findFirst({
+        where: { accountId, createdAt: { lt: to } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { balanceAfter: true },
+      });
+
+      const openingBalance = openingEntry?.balanceAfter ?? new Prisma.Decimal('0.00');
+
+      const statement: AccountStatementRecord = {
+        accountId: account.id,
+        currency: account.currency,
+        from,
+        to,
+        openingBalance,
+        movements,
+        closingBalance: closingEntry?.balanceAfter ?? openingBalance,
+      };
+
+      return toPublicAccountStatement(statement);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 }
