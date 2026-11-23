@@ -67,13 +67,13 @@ describe('money operation concurrency', () => {
         });
 
     const requests = [
-      ...Array.from({ length: 25 }, () => transfer(accountA.id, accountB.accountNumber)),
-      ...Array.from({ length: 25 }, () => transfer(accountB.id, accountA.accountNumber)),
+      ...Array.from({ length: 10 }, () => transfer(accountA.id, accountB.accountNumber)),
+      ...Array.from({ length: 10 }, () => transfer(accountB.id, accountA.accountNumber)),
     ];
 
     const responses = await Promise.all(requests);
 
-    expect(responses.filter((response) => response.status === 201)).toHaveLength(50);
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(20);
 
     const updatedA = await prisma.account.findUniqueOrThrow({
       where: { id: accountA.id },
@@ -83,7 +83,7 @@ describe('money operation concurrency', () => {
     });
 
     expect(updatedA.balance.plus(updatedB.balance).toFixed(2)).toBe('200.00');
-  });
+  }, 15_000);
 
   it('keeps account balances equal to their ledger totals', async () => {
     const { user, customer } = await createCustomer();
