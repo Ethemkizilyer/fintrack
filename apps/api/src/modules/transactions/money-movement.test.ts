@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createAccount, createCustomer } from '../../../tests/helpers';
-import { runMoneyTransaction } from './money-movement';
 import { describe, expect, it } from 'vitest';
+import { runMoneyTransaction } from './money-movement';
 
 describe('runMoneyTransaction', () => {
   it('updates the balance and appends a credit ledger entry', async () => {
@@ -88,6 +88,61 @@ describe('runMoneyTransaction', () => {
     expect(updatedAccount.balance.toFixed(2)).toBe('0.00');
     expect(failedTransaction.status).toBe('FAILED');
     expect(failedTransaction.failureReason).toBe('INSUFFICIENT_FUNDS');
+    expect(ledgerCount).toBe(0);
+  });
+
+  it('rolls back movements when cleanup already failed the pending transaction', async () => {
+    const { user, customer } = await createCustomer();
+    const account = await createAccount(customer.id);
+
+    const pending = await prisma.transaction.create({
+      data: {
+        type: 'DEPOSIT',
+        status: 'PENDING',
+        amount: new Prisma.Decimal('25.00'),
+        currency: 'TRY',
+        targetAccountId: account.id,
+        idempotencyKey: randomUUID(),
+        requestHash: randomUUID(),
+        initiatedById: user.id,
+      },
+    });
+
+    await prisma.transaction.update({
+      where: { id: pending.id },
+      data: {
+        status: 'FAILED',
+        failureReason: 'STALE_PENDING',
+      },
+    });
+
+    await expect(
+      runMoneyTransaction(pending, [
+        {
+          accountId: account.id,
+          direction: 'CREDIT',
+          amount: new Prisma.Decimal('25.00'),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      code: 'STALE_PENDING',
+    });
+
+    const [updatedAccount, failedTransaction, ledgerCount] = await Promise.all([
+      prisma.account.findUniqueOrThrow({
+        where: { id: account.id },
+      }),
+      prisma.transaction.findUniqueOrThrow({
+        where: { id: pending.id },
+      }),
+      prisma.ledgerEntry.count({
+        where: { transactionId: pending.id },
+      }),
+    ]);
+
+    expect(updatedAccount.balance.toFixed(2)).toBe('0.00');
+    expect(failedTransaction.status).toBe('FAILED');
+    expect(failedTransaction.failureReason).toBe('STALE_PENDING');
     expect(ledgerCount).toBe(0);
   });
 });

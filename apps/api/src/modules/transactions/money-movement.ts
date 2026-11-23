@@ -135,18 +135,28 @@ export async function executeMovements(pending: PendingTransaction, movements: M
         balanceAfter,
       });
 
-      // Keep the in-memory balance current if an account has multiple movements.
       accounts.set(account.id, { ...account, balance: balanceAfter });
     }
 
     await tx.ledgerEntry.createMany({ data: ledgerEntries });
 
-    return tx.transaction.update({
-      where: { id: pending.id },
+    const completion = await tx.transaction.updateMany({
+      where: {
+        id: pending.id,
+        status: 'PENDING',
+      },
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
       },
+    });
+
+    if (completion.count !== 1) {
+      throw AppError.businessRule('STALE_PENDING', 'Transaction is no longer pending');
+    }
+
+    return tx.transaction.findUniqueOrThrow({
+      where: { id: pending.id },
     });
   }, TRANSACTION_OPTIONS);
 }
@@ -157,8 +167,11 @@ export async function runMoneyTransaction(pending: PendingTransaction, movements
   } catch (error) {
     const isBusinessError = error instanceof AppError && error.isBusinessRule;
 
-    await prisma.transaction.update({
-      where: { id: pending.id },
+    await prisma.transaction.updateMany({
+      where: {
+        id: pending.id,
+        status: 'PENDING',
+      },
       data: {
         status: 'FAILED',
         failureReason: error instanceof AppError ? error.code : 'INTERNAL_ERROR',
