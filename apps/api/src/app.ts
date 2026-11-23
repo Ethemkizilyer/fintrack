@@ -9,6 +9,8 @@ import { errorHandler } from '@/middlewares/error-handler';
 import { notFoundHandler } from '@/middlewares/not-found';
 import { router } from '@/routes';
 import { apiRateLimiter } from './middlewares/rate-limits';
+import swaggerUi from 'swagger-ui-express';
+import { openApiDocument } from '@/docs/openapi';
 
 export const app = express();
 
@@ -34,6 +36,14 @@ app.use(helmet());
 app.use(cors({ origin: env.WEB_URL, credentials: true }));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+app.use('/api/docs', swaggerUi.serve);
+app.get(
+  '/api/docs',
+  swaggerUi.setup(openApiDocument, {
+    customSiteTitle: 'FinTrack API',
+    swaggerOptions: { withCredentials: true },
+  }),
+);
 app.use('/api/v1', apiRateLimiter, router);
 app.use(notFoundHandler);
 app.use(errorHandler);
