@@ -56,10 +56,47 @@ export async function listAccounts(actor: Actor, query: ListAccountsQuery) {
     ...(query.status ? { status: query.status } : {}),
   };
 
+  if (query.search) {
+    const normalizedSearch = query.search.replace(/[\s-]/g, '');
+    const accountNumberPrefix = /^\d+$/.test(normalizedSearch) ? normalizedSearch : undefined;
+    const currency = ['TRY', 'USD', 'EUR'].find(
+      (value) => value === query.search?.toUpperCase(),
+    ) as 'TRY' | 'USD' | 'EUR' | undefined;
+    const searchConditions: Prisma.AccountWhereInput[] = [];
+
+    if (accountNumberPrefix) {
+      searchConditions.push({ accountNumber: { startsWith: accountNumberPrefix } });
+    }
+    if (currency) {
+      searchConditions.push({ currency });
+    }
+
+    if (actor.role === 'ADMIN' && !accountNumberPrefix && !currency) {
+      const matchingCustomers = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM customers
+        WHERE immutable_unaccent(lower(first_name || ' ' || last_name))
+          ILIKE '%' || immutable_unaccent(lower(${query.search})) || '%'
+        ORDER BY id
+        LIMIT 500
+      `;
+
+      if (matchingCustomers.length > 0) {
+        searchConditions.push({ customerId: { in: matchingCustomers.map(({ id }) => id) } });
+      }
+    }
+
+    where.OR = searchConditions.length > 0 ? searchConditions : [{ id: { in: [] } }];
+  }
+
+  const limit = query.limit ?? (query.search ? 20 : undefined);
+  const orderBy: Prisma.AccountOrderByWithRelationInput[] = [{ createdAt: 'desc' }, { id: 'desc' }];
+
   if (actor.role === 'ADMIN') {
     const accounts = await prisma.account.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
+      ...(limit ? { take: limit } : {}),
       include: {
         customer: {
           select: { firstName: true, lastName: true },
@@ -75,7 +112,8 @@ export async function listAccounts(actor: Actor, query: ListAccountsQuery) {
 
   const accounts = await prisma.account.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
+    orderBy,
+    ...(limit ? { take: limit } : {}),
   });
 
   return accounts.map(toPublicAccount);

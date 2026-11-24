@@ -56,6 +56,8 @@ export const accountIdParamsSchema = z.object({
 export const listAccountsQuerySchema = z.object({
   customerId: z.uuid('Geçersiz müşteri kimliği').optional(),
   status: z.enum(['ACTIVE', 'PASSIVE']).optional(),
+  search: z.string().trim().min(2, 'Arama en az 2 karakter olmalı').max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
 export const updateAccountStatusSchema = z.object({

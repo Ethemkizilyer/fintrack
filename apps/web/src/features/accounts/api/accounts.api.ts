@@ -13,6 +13,11 @@ export async function fetchAccounts(query: ListAccountsQuery = {}): Promise<Publ
   return data.data;
 }
 
+export async function fetchAccountById(id: string): Promise<PublicAccount> {
+  const { data } = await apiClient.get<ApiSuccess<PublicAccount>>(`/accounts/${id}`);
+  return data.data;
+}
+
 export async function createAccount(input: CreateAccountInput): Promise<PublicAccount> {
   const { data } = await apiClient.post<ApiSuccess<PublicAccount>>('/accounts', input);
   return data.data;

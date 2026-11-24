@@ -33,7 +33,13 @@ export default function DashboardPage() {
           </Typography>
         </Box>
         {user?.role === 'CUSTOMER' && (
-          <Button component={Link} href="/dashboard/accounts/new" variant="contained">
+          <Button
+            component={Link}
+            href="/dashboard/accounts/new"
+            variant="contained"
+            color="primary"
+            style={{ color: 'var(--primary-action-text)' }}
+          >
             Yeni hesap aç
           </Button>
         )}

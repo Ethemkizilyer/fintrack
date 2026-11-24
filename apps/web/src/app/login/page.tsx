@@ -20,6 +20,7 @@ import { loginSchema, type LoginInput } from '@fintrack/shared';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { useLogin } from '@/features/auth/hooks/use-login';
 import { getApiErrorMessage } from '@/lib/error-messages';
+import { ThemeModeToggle } from '@/theme/theme-mode-toggle';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -54,13 +55,17 @@ export default function LoginPage() {
     <Box
       sx={{
         minHeight: '100vh',
+        position: 'relative',
         display: 'grid',
         alignItems: 'center',
         py: 5,
-        background:
-          'radial-gradient(ellipse at 85% 15%, rgba(194, 122, 74, 0.13), transparent 26rem), radial-gradient(ellipse at 10% 80%, rgba(23, 74, 66, 0.1), transparent 30rem)',
+        color: 'text.primary',
+        background: 'var(--auth-background)',
       }}
     >
+      <Box sx={{ position: 'absolute', top: { xs: 2, sm: 3 }, right: { xs: 2, sm: 3 } }}>
+        <ThemeModeToggle />
+      </Box>
       <Container maxWidth="sm">
         <Stack spacing={3}>
           <MuiLink component={Link} href="/" underline="none" color="inherit">

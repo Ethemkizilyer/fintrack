@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Alert, Button, Paper, Skeleton, Stack, Typography } from '@mui/material';
-import { useAccounts } from '@/features/accounts/hooks/use-accounts';
+import { useAccountOptions } from '@/features/accounts/hooks/use-accounts';
 import { DepositWithdrawalForm } from '../components/deposit-withdrawal-form';
 import { TransferForm } from '../components/transfer-form';
 
@@ -27,9 +27,9 @@ const copy: Record<Operation, { eyebrow: string; title: string; description: str
 };
 
 export function MoneyOperationPage({ operation }: { operation: Operation }) {
-  const accountsQuery = useAccounts();
+  const accountsQuery = useAccountOptions('', 'ACTIVE');
   const content = copy[operation];
-  const activeAccounts = accountsQuery.data?.filter((account) => account.status === 'ACTIVE') ?? [];
+  const activeAccounts = accountsQuery.data ?? [];
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto' }}>
@@ -65,9 +65,9 @@ export function MoneyOperationPage({ operation }: { operation: Operation }) {
       {accountsQuery.isSuccess &&
         activeAccounts.length > 0 &&
         (operation === 'transfer' ? (
-          <TransferForm accounts={activeAccounts} />
+          <TransferForm />
         ) : (
-          <DepositWithdrawalForm operation={operation} accounts={activeAccounts} />
+          <DepositWithdrawalForm operation={operation} />
         ))}
     </Stack>
   );

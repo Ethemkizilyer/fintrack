@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { DM_Mono, Manrope } from 'next/font/google';
+import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import { AppProviders } from '@/providers/app-providers';
 import './globals.css';
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="tr">
       <body className={`${manrope.variable} ${dmMono.variable}`}>
+        <InitColorSchemeScript defaultMode="system" />
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <AppProviders>{children}</AppProviders>
         </AppRouterCacheProvider>

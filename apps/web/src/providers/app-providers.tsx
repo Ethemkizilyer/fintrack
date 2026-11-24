@@ -28,7 +28,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   );
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} defaultMode="system" disableTransitionOnChange>
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <SessionBootstrap />

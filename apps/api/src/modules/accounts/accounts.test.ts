@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { app } from '@/app';
+import { prisma } from '@/lib/prisma';
 import { createAccount, createCustomer, loginAs, loginUser } from '../../../tests/helpers';
 
 const ADMIN = () => loginAs('ADMIN');
@@ -113,6 +114,49 @@ describe('GET /api/v1/accounts + /:id', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/v1/accounts search', () => {
+  it('limits customer results to their own accounts', async () => {
+    const { user, customer: own } = await createCustomer();
+    const { customer: other } = await createCustomer();
+    await createAccount(own.id);
+    await createAccount(own.id);
+    await createAccount(other.id);
+    const token = await loginUser(user.email);
+
+    const res = await request(app)
+      .get('/api/v1/accounts')
+      .query({ search: 'TRY', limit: 1 })
+      .set('Authorization', `Bearer ${token}`);
+
+    const body = res.body as { data: { customerId: string }[] };
+    expect(res.status).toBe(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.customerId).toBe(own.id);
+  });
+
+  it('matches Turkish customer names without accents for admins', async () => {
+    const { customer } = await createCustomer();
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: { firstName: 'Çağrı', lastName: 'Yılmaz' },
+    });
+    const account = await createAccount(customer.id);
+
+    const res = await request(app)
+      .get('/api/v1/accounts')
+      .query({ search: 'Cagri', limit: 20 })
+      .set('Authorization', `Bearer ${await ADMIN()}`);
+
+    const body = res.body as {
+      data: { id: string; owner?: { firstName: string; lastName: string } }[];
+    };
+    const result = body.data.find((item) => item.id === account.id);
+
+    expect(res.status).toBe(200);
+    expect(result?.owner).toEqual({ firstName: 'Çağrı', lastName: 'Yılmaz' });
   });
 });
 

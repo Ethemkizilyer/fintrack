@@ -1,35 +1,70 @@
 import { createTheme } from '@mui/material/styles';
 
 export const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#174A42',
-      dark: '#10352F',
-      light: '#3E766B',
-      contrastText: '#FFFFFF',
+  colorSchemes: {
+    light: {
+      palette: {
+        primary: {
+          main: '#174A42',
+          dark: '#10352F',
+          light: '#3E766B',
+          contrastText: '#FFFFFF',
+        },
+        secondary: {
+          main: '#C27A4A',
+          dark: '#995B36',
+          light: '#E5A77C',
+          contrastText: '#FFFFFF',
+        },
+        success: {
+          main: '#267A5A',
+        },
+        error: {
+          main: '#B44743',
+        },
+        background: {
+          default: '#F4F2EC',
+          paper: '#FFFEFA',
+        },
+        text: {
+          primary: '#172B27',
+          secondary: '#687772',
+        },
+        divider: 'rgba(23, 43, 39, 0.12)',
+      },
     },
-    secondary: {
-      main: '#C27A4A',
-      dark: '#995B36',
-      light: '#E5A77C',
-      contrastText: '#FFFFFF',
+    dark: {
+      palette: {
+        mode: 'dark',
+        primary: {
+          main: '#8DBDAF',
+          dark: '#6FA899',
+          light: '#B2D5CB',
+          contrastText: '#10221D',
+        },
+        secondary: {
+          main: '#E6AA80',
+          dark: '#C98359',
+          light: '#F2C7A9',
+          contrastText: '#28180F',
+        },
+        success: {
+          main: '#71C59E',
+        },
+        error: {
+          main: '#F08B82',
+        },
+        background: {
+          default: '#101916',
+          paper: '#19241F',
+        },
+        text: {
+          primary: '#EDF2EB',
+          secondary: '#AFBBB5',
+        },
+        divider: 'rgba(237, 242, 235, 0.14)',
+      },
     },
-    success: {
-      main: '#267A5A',
-    },
-    error: {
-      main: '#B44743',
-    },
-    background: {
-      default: '#F4F2EC',
-      paper: '#FFFEFA',
-    },
-    text: {
-      primary: '#172B27',
-      secondary: '#687772',
-    },
-    divider: 'rgba(23, 43, 39, 0.12)',
   },
   shape: {
     borderRadius: 10,
@@ -88,10 +123,10 @@ export const theme = createTheme({
     },
     MuiPaper: {
       styleOverrides: {
-        rounded: {
+        rounded: ({ theme }) => ({
           borderRadius: 12,
-          border: '1px solid rgba(23, 43, 39, 0.08)',
-        },
+          border: `1px solid ${theme.palette.divider}`,
+        }),
       },
     },
   },

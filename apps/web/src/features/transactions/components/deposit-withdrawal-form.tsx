@@ -2,26 +2,26 @@
 
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Alert, Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Controller, useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { type CreateMoneyOperationInput, type PublicAccount } from '@fintrack/shared';
+import { AccountAutocompleteField } from '@/features/accounts/components/account-autocomplete-field';
 import { useCreateDeposit, useCreateWithdrawal } from '../hooks/use-money-mutations';
 import { getApiErrorMessage } from '@/lib/error-messages';
-import { formatAmount } from '@/lib/format-amount';
 import { formatLocalizedAmountInput } from '@/lib/localized-input';
 import { localizedDepositSchema, localizedWithdrawalSchema } from '../money-form.schemas';
 
 type DepositWithdrawalFormProps = {
   operation: 'deposit' | 'withdrawal';
-  accounts: PublicAccount[];
 };
 
-export function DepositWithdrawalForm({ operation, accounts }: DepositWithdrawalFormProps) {
+export function DepositWithdrawalForm({ operation }: DepositWithdrawalFormProps) {
   const schema = operation === 'deposit' ? localizedDepositSchema : localizedWithdrawalSchema;
   const depositMutation = useCreateDeposit();
   const withdrawalMutation = useCreateWithdrawal();
   const mutation = operation === 'deposit' ? depositMutation : withdrawalMutation;
+  const [selectedAccount, setSelectedAccount] = useState<PublicAccount | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [serverError, setServerError] = useState<string | null>(null);
   const [referenceNo, setReferenceNo] = useState<string | null>(null);
@@ -33,11 +33,8 @@ export function DepositWithdrawalForm({ operation, accounts }: DepositWithdrawal
     formState: { errors },
   } = useForm<z.input<typeof schema>, unknown, CreateMoneyOperationInput>({
     resolver: zodResolver(schema),
-    defaultValues: { accountId: accounts[0]?.id ?? '', amount: '', description: '' },
+    defaultValues: { accountId: '', amount: '', description: '' },
   });
-  const selectedAccountId = useWatch({ control, name: 'accountId' });
-  const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
-
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
     setReferenceNo(null);
@@ -79,21 +76,18 @@ export function DepositWithdrawalForm({ operation, accounts }: DepositWithdrawal
           name="accountId"
           control={control}
           render={({ field }) => (
-            <TextField
-              {...field}
-              select
+            <AccountAutocompleteField
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              inputRef={field.ref}
+              onSelectionChange={setSelectedAccount}
+              status="ACTIVE"
+              autoSelectFirst
               label="Hesap"
-              fullWidth
               error={Boolean(errors.accountId)}
               helperText={errors.accountId?.message}
-            >
-              {accounts.map((account) => (
-                <MenuItem key={account.id} value={account.id}>
-                  {account.currency} · •••• {account.accountNumber.slice(-4)} ·{' '}
-                  {formatAmount(account.balance, account.currency)}
-                </MenuItem>
-              ))}
-            </TextField>
+            />
           )}
         />
         <Controller
