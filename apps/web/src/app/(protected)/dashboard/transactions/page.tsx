@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Alert,
@@ -21,7 +21,8 @@ import {
   Typography,
 } from '@mui/material';
 import type { AccountTransactionsQuery } from '@fintrack/shared';
-import { useAccounts } from '@/features/accounts/hooks/use-accounts';
+import { AccountAutocompleteField } from '@/features/accounts/components/account-autocomplete-field';
+import { useAccountOptions } from '@/features/accounts/hooks/use-accounts';
 import { useAccountHistory } from '@/features/transactions/hooks/use-account-history';
 import { useTransaction } from '@/features/transactions/hooks/use-transaction';
 import { formatAmount } from '@/lib/format-amount';
@@ -61,11 +62,14 @@ export default function TransactionHistoryPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const accountsQuery = useAccounts();
+  const accountsQuery = useAccountOptions('');
   const accounts = accountsQuery.data ?? [];
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const accountIdFromUrl = searchParams.get('accountId') ?? '';
+  const defaultAccountId = accounts[0]?.id ?? '';
+  const [filterAccountId, setFilterAccountId] = useState(accountIdFromUrl);
 
-  const accountId = searchParams.get('accountId') ?? accounts[0]?.id ?? '';
+  const accountId = accountIdFromUrl || defaultAccountId;
   const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
@@ -84,9 +88,13 @@ export default function TransactionHistoryPage() {
   const historyQuery = useAccountHistory(accountId, query);
   const detailQuery = useTransaction(selectedTransactionId);
 
+  useEffect(() => {
+    setFilterAccountId(accountIdFromUrl || defaultAccountId);
+  }, [accountIdFromUrl, defaultAccountId]);
+
   function applyFilters(formData: FormData) {
     const params = new URLSearchParams();
-    params.set('accountId', getFormString(formData, 'accountId', accountId));
+    params.set('accountId', filterAccountId || accountId);
     const nextFrom = getFormString(formData, 'from');
     const nextTo = getFormString(formData, 'to');
     const nextType = getFormString(formData, 'type');
@@ -149,20 +157,14 @@ export default function TransactionHistoryPage() {
               spacing={1.5}
               sx={{ alignItems: { md: 'center' } }}
             >
-              <TextField
-                select
-                name="accountId"
-                label="Hesap"
-                defaultValue={accountId}
-                key={accountId}
-                fullWidth
-              >
-                {accounts.map((account) => (
-                  <MenuItem key={account.id} value={account.id}>
-                    {account.currency} · •••• {account.accountNumber.slice(-4)}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Box sx={{ minWidth: { md: 220 }, flex: 1 }}>
+                <AccountAutocompleteField
+                  value={filterAccountId || accountId}
+                  onChange={setFilterAccountId}
+                  label="Hesap"
+                  autoSelectFirst
+                />
+              </Box>
               <TextField
                 name="from"
                 label="Başlangıç"

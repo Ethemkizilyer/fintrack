@@ -1,5 +1,6 @@
 import { Box, Button, Chip, Container, Divider, Paper, Stack, Typography } from '@mui/material';
 import { apiDocsUrl } from '@/lib/env';
+import { ThemeModeToggle } from '@/theme/theme-mode-toggle';
 
 const principles = [
   {
@@ -24,7 +25,7 @@ const principles = [
 
 export default function HomePage() {
   return (
-    <Box component="main" className="site-shell">
+    <Box component="main" className="site-shell" sx={{ color: 'text.primary' }}>
       <Container maxWidth="lg">
         <Box
           component="header"
@@ -58,6 +59,7 @@ export default function HomePage() {
           </Stack>
 
           <Stack direction="row" spacing={{ xs: 1, sm: 2 }} sx={{ alignItems: 'center' }}>
+            <ThemeModeToggle />
             <Button component="a" href="/login" size="small" variant="contained" color="primary">
               Giriş yap
             </Button>
@@ -76,13 +78,19 @@ export default function HomePage() {
               rel="noreferrer"
               variant="outlined"
               color="primary"
+              sx={{ minWidth: { xs: 54, sm: 'auto' } }}
               endIcon={
                 <Box component="span" aria-hidden="true">
                   ↗
                 </Box>
               }
             >
-              API dokümantasyonu
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                API dokümantasyonu
+              </Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>
+                API
+              </Box>
             </Button>
           </Stack>
         </Box>
@@ -95,8 +103,8 @@ export default function HomePage() {
               variant="outlined"
               sx={{
                 height: 32,
-                borderColor: 'rgba(23, 74, 66, 0.2)',
-                bgcolor: 'rgba(255, 254, 250, 0.7)',
+                borderColor: 'divider',
+                bgcolor: 'background.paper',
                 '& .MuiChip-label': {
                   px: 1.5,
                   fontFamily: 'var(--font-dm-mono), monospace',

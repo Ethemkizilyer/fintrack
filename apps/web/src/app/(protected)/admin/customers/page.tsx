@@ -65,7 +65,13 @@ export default function AdminCustomersPage() {
           spacing={2}
         >
           <BoxTitle />
-          <Button component={Link} href="/admin/customers/new" variant="contained">
+          <Button
+            component={Link}
+            href="/admin/customers/new"
+            variant="contained"
+            color="primary"
+            style={{ color: 'var(--primary-action-text)' }}
+          >
             Müşteri ekle
           </Button>
         </Stack>

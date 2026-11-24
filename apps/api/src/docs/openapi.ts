@@ -491,6 +491,8 @@ registry.registerPath({
   path: '/accounts',
   tags: ['Accounts'],
   summary: 'List accounts visible to the current user',
+  description:
+    'Supports account-number, currency, and admin owner-name search. Search results are bounded to 20 by default; an explicit limit may be between 1 and 50.',
   security: bearerSecurity,
   request: { query: listAccountsQuerySchema },
   responses: {

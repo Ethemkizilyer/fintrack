@@ -17,7 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useAccounts } from '@/features/accounts/hooks/use-accounts';
+import { AccountAutocompleteField } from '@/features/accounts/components/account-autocomplete-field';
 import {
   fetchAccountStatement,
   fetchPeriodicReport,
@@ -52,7 +52,6 @@ function formatDate(value: string): string {
 }
 
 export default function ReportsPage() {
-  const accountsQuery = useAccounts();
   const [range, setRange] = useState({ from: '', to: '' });
   const [accountId, setAccountId] = useState('');
   const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
@@ -121,20 +120,14 @@ export default function ReportsPage() {
             onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))}
             slotProps={{ inputLabel: { shrink: true } }}
           />
-          <TextField
-            select
-            label="Hesap kapsamı"
-            value={accountId}
-            onChange={(event) => setAccountId(event.target.value)}
-            sx={{ minWidth: 220 }}
-          >
-            <MenuItem value="">Tüm hesaplar</MenuItem>
-            {(accountsQuery.data ?? []).map((account) => (
-              <MenuItem key={account.id} value={account.id}>
-                {account.currency} · •••• {account.accountNumber.slice(-4)}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 220, flex: 1 }}>
+            <AccountAutocompleteField
+              value={accountId}
+              onChange={setAccountId}
+              label="Hesap kapsamı"
+              placeholder="Tüm hesaplar"
+            />
+          </Box>
           <TextField
             select
             label="Gruplama"

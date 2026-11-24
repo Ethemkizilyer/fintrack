@@ -2,22 +2,19 @@
 
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Alert, Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Controller, useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { type CreateTransferInput, type PublicAccount } from '@fintrack/shared';
+import { AccountAutocompleteField } from '@/features/accounts/components/account-autocomplete-field';
 import { useCreateTransfer } from '../hooks/use-money-mutations';
-import { formatAmount } from '@/lib/format-amount';
 import { getApiErrorMessage } from '@/lib/error-messages';
 import { formatLocalizedAmountInput } from '@/lib/localized-input';
 import { localizedTransferSchema } from '../money-form.schemas';
 
-type TransferFormProps = {
-  accounts: PublicAccount[];
-};
-
-export function TransferForm({ accounts }: TransferFormProps) {
+export function TransferForm() {
   const transferMutation = useCreateTransfer();
+  const [sourceAccount, setSourceAccount] = useState<PublicAccount | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [serverError, setServerError] = useState<string | null>(null);
   const [referenceNo, setReferenceNo] = useState<string | null>(null);
@@ -30,14 +27,12 @@ export function TransferForm({ accounts }: TransferFormProps) {
   } = useForm<z.input<typeof localizedTransferSchema>, unknown, CreateTransferInput>({
     resolver: zodResolver(localizedTransferSchema),
     defaultValues: {
-      sourceAccountId: accounts[0]?.id ?? '',
+      sourceAccountId: '',
       targetAccountNumber: '',
       amount: '',
       description: '',
     },
   });
-  const sourceAccountId = useWatch({ control, name: 'sourceAccountId' });
-  const sourceAccount = accounts.find((account) => account.id === sourceAccountId);
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
@@ -79,21 +74,18 @@ export function TransferForm({ accounts }: TransferFormProps) {
           name="sourceAccountId"
           control={control}
           render={({ field }) => (
-            <TextField
-              {...field}
-              select
+            <AccountAutocompleteField
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              inputRef={field.ref}
+              onSelectionChange={setSourceAccount}
+              status="ACTIVE"
+              autoSelectFirst
               label="Gönderen hesap"
-              fullWidth
               error={Boolean(errors.sourceAccountId)}
               helperText={errors.sourceAccountId?.message}
-            >
-              {accounts.map((account) => (
-                <MenuItem key={account.id} value={account.id}>
-                  {account.currency} · •••• {account.accountNumber.slice(-4)} ·{' '}
-                  {formatAmount(account.balance, account.currency)}
-                </MenuItem>
-              ))}
-            </TextField>
+            />
           )}
         />
         <TextField

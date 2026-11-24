@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { logout } from '@/features/auth/api/auth.api';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { ExchangeRatesMenu } from '@/features/exchange-rates/components/exchange-rates-menu';
+import { ThemeModeToggle } from '@/theme/theme-mode-toggle';
 import { useMutation } from '@tanstack/react-query';
 
 type AppShellProps = {
@@ -44,12 +45,12 @@ export function AppShell({ children }: AppShellProps) {
         ];
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
       <AppBar
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: 'rgba(255, 254, 250, 0.94)',
+          bgcolor: 'background.paper',
           color: 'text.primary',
           borderBottom: '1px solid',
           borderColor: 'divider',
@@ -97,6 +98,7 @@ export function AppShell({ children }: AppShellProps) {
 
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
               <ExchangeRatesMenu />
+              <ThemeModeToggle />
               <Typography
                 variant="body2"
                 color="text.secondary"
@@ -125,6 +127,7 @@ export function AppShell({ children }: AppShellProps) {
           borderBottom: '1px solid',
           borderColor: 'divider',
           bgcolor: 'background.paper',
+          color: 'text.primary',
         }}
       >
         <Container maxWidth="lg">
