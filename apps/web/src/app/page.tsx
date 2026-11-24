@@ -25,7 +25,16 @@ const principles = [
 
 export default function HomePage() {
   return (
-    <Box component="main" className="site-shell" sx={{ color: 'text.primary' }}>
+    <Box
+      component="main"
+      className="site-shell"
+      sx={{
+        minHeight: '100vh',
+        color: 'text.primary',
+        bgcolor: 'background.default',
+        backgroundImage: 'inherit',
+      }}
+    >
       <Container maxWidth="lg">
         <Box
           component="header"
@@ -60,7 +69,14 @@ export default function HomePage() {
 
           <Stack direction="row" spacing={{ xs: 1, sm: 2 }} sx={{ alignItems: 'center' }}>
             <ThemeModeToggle />
-            <Button component="a" href="/login" size="small" variant="contained" color="primary">
+            <Button
+              component="a"
+              href="/login"
+              size="small"
+              variant="contained"
+              color="primary"
+              style={{ color: 'var(--primary-action-text)' }}
+            >
               Giriş yap
             </Button>
             <Button
@@ -138,6 +154,7 @@ export default function HomePage() {
                 rel="noreferrer"
                 variant="contained"
                 color="primary"
+                style={{ color: 'var(--primary-action-text)' }}
                 endIcon={
                   <Box component="span" aria-hidden="true">
                     ↗
@@ -170,18 +187,21 @@ export default function HomePage() {
               overflow: 'hidden',
               p: { xs: 2.5, sm: 3.5 },
               borderRadius: '20px',
-              bgcolor: 'primary.dark',
-              color: '#F7F4EA',
-              boxShadow: '0 32px 90px rgba(16, 53, 47, 0.18)',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              boxShadow: '0 32px 90px rgba(0, 0, 0, 0.18)',
             }}
           >
             <Stack spacing={3}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
-                  <Typography variant="overline" sx={{ color: 'rgba(247, 244, 234, 0.58)' }}>
+                  <Typography
+                    variant="overline"
+                    sx={{ color: 'primary.contrastText', opacity: 0.72 }}
+                  >
                     İŞLEM AKIŞI
                   </Typography>
-                  <Typography variant="h3" sx={{ mt: 0.5, color: '#F7F4EA' }}>
+                  <Typography variant="h3" sx={{ mt: 0.5 }}>
                     Baştan sona kayıtlı
                   </Typography>
                 </Box>
@@ -193,8 +213,10 @@ export default function HomePage() {
                     display: 'grid',
                     placeItems: 'center',
                     borderRadius: '50%',
-                    border: '1px solid rgba(247, 244, 234, 0.22)',
-                    color: '#C9D98F',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'primary.contrastText',
+                    opacity: 0.72,
                     fontSize: '1.2rem',
                   }}
                 >
@@ -202,7 +224,7 @@ export default function HomePage() {
                 </Box>
               </Stack>
 
-              <Divider sx={{ borderColor: 'rgba(247, 244, 234, 0.14)' }} />
+              <Divider sx={{ borderColor: 'divider' }} />
 
               <Stack spacing={0}>
                 {[
@@ -217,18 +239,19 @@ export default function HomePage() {
                     sx={{
                       alignItems: 'flex-start',
                       py: 2.1,
-                      borderBottom: index < 2 ? '1px solid rgba(247, 244, 234, 0.12)' : 'none',
+                      borderBottom: index < 2 ? '1px solid' : 'none',
+                      borderColor: 'divider',
                     }}
                   >
-                    <Typography variant="overline" sx={{ pt: 0.4, color: '#C9D98F', minWidth: 30 }}>
+                    <Typography
+                      variant="overline"
+                      sx={{ pt: 0.4, color: 'primary.contrastText', opacity: 0.72, minWidth: 30 }}
+                    >
                       {step}
                     </Typography>
                     <Box>
-                      <Typography sx={{ fontWeight: 700, color: '#F7F4EA' }}>{title}</Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ mt: 0.5, color: 'rgba(247, 244, 234, 0.62)' }}
-                      >
+                      <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.72 }}>
                         {detail}
                       </Typography>
                     </Box>
@@ -240,11 +263,15 @@ export default function HomePage() {
                 sx={{
                   p: 2,
                   borderRadius: '12px',
-                  bgcolor: 'rgba(247, 244, 234, 0.08)',
-                  border: '1px solid rgba(247, 244, 234, 0.1)',
+                  bgcolor: 'action.hover',
+                  border: '1px solid',
+                  borderColor: 'divider',
                 }}
               >
-                <Typography variant="overline" sx={{ color: 'rgba(247, 244, 234, 0.56)' }}>
+                <Typography
+                  variant="overline"
+                  sx={{ color: 'primary.contrastText', opacity: 0.72 }}
+                >
                   SONUÇ
                 </Typography>
                 <Stack
@@ -258,8 +285,8 @@ export default function HomePage() {
                     size="small"
                     label="TAMAMLANDI"
                     sx={{
-                      bgcolor: 'rgba(201, 217, 143, 0.16)',
-                      color: '#D9E9A3',
+                      bgcolor: 'action.selected',
+                      color: 'primary.contrastText',
                       fontFamily: 'var(--font-dm-mono), monospace',
                       fontSize: '0.6rem',
                     }}
